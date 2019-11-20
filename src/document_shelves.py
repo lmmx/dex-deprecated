@@ -44,9 +44,8 @@ def make_author_entry(auth):
     auth_year_list = [x.name for x in (shelves_dir / auth).iterdir() if x.is_dir()]
     for n, year in enumerate(sorted(auth_year_list)):
         title, edition, coauths = book_lookup(auth, year)
-        auth_str = f"  {n+1}) {year} — {title}"
+        auth_str = f"  {n+1}) {year} — *{title}*"
         if edition is not None: auth_str += f" ({edition}e.)"
-        auth_entry.append(auth_str)
         if coauths is not None:
             coauth_dir = shelves_dir / auth / year / 'coauths'
             coauth_surname_list = [get_coauth_name(coauth_dir, c)[1] for c in coauths]
@@ -56,7 +55,8 @@ def make_author_entry(auth):
             if len(coauth_surname_list) > 1:
                 coauth_surnames += ' & '
             coauth_surnames += coauth_surname_list[-1]
-            auth_entry.append(f"  - *with {coauth_surnames}*")
+            auth_str += (f" with {coauth_surnames}")
+        auth_entry.append(auth_str)
     auth_entry.append('')
     return '\n'.join(auth_entry)
 
