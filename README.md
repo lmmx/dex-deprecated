@@ -8,7 +8,7 @@ Below is a list of books stored:
 
 [//]: # (AUTOWRITE::Do not edit this section manually:START)
 
- ### [:book: Strang, Gilbert](strang_gilbert):
+ ### [:book: Strang, Gilbert](#strang_gilbert):
   1) 1980 — Linear Algebra and Its Applications (2e.)
   2) 2019 — Linear Algebra and Learning from Data (1e.)
 
