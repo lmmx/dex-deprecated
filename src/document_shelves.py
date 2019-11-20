@@ -5,8 +5,16 @@ top_dir = Path(__file__).absolute().parent.parent
 shelves_dir = top_dir / "shelves"
 auths = [x.name for x in shelves_dir.iterdir()]
 
+def get_coauth_name(coauths_dir, auth):
+    ccf = cp.ConfigParser()
+    coauth_info = coauths_dir / auth / 'auth_info.ini'
+    assert coauth_info.exists(), f"No auth_info.ini file for {auth}"
+    assert ccf.read(coauth_info), f"Could not read {coauth_info}"
+    first, last = ccf['NAME']['first_names'], ccf['NAME']['surname'] 
+    return first, last
+
 def book_lookup(auth,year):
-    """Get the title of a book given its author and publication year."""
+    """Get book info given its author and publication year."""
     bcf = cp.ConfigParser()
     book_info = shelves_dir / auth / year / 'book_info.ini'
     assert book_info.exists(), f"No book_info.ini file for {auth}/{year}"
@@ -16,7 +24,11 @@ def book_lookup(auth,year):
         edition = bcf['BIB']['edition']
     else:
         edition = None
-    return title, edition
+    if 'coauth_keys' in bcf['INTERNAL']:
+        coauths = [c.strip() for c in bcf['INTERNAL']['coauth_keys'].split(',')]
+    else:
+        coauths = None
+    return title, edition, coauths
 
 def make_author_entry(auth):
     """Create a summary string for a given author"""
@@ -30,11 +42,20 @@ def make_author_entry(auth):
         auth_entry = [f"\n- {auth}"]
     auth_year_list = [x.name for x in (shelves_dir / auth).iterdir() if x.is_dir()]
     for n, year in enumerate(sorted(auth_year_list)):
-        title, edition = book_lookup(auth, year)
-        if edition is not None:
-            auth_entry.append(f"  {n+1}) {year} — {title} ({edition}e.)")
-        else:
-            auth_entry.append(f"  {n+1}) {year} — {title}")
+        title, edition, coauths = book_lookup(auth, year)
+        auth_str = f"  {n+1}) {year} — {title}"
+        if edition is not None: auth_str += f" ({edition}e.)"
+        auth_entry.append(auth_str)
+        if coauths is not None:
+            coauth_dir = shelves_dir / auth / year / 'coauths'
+            coauth_surname_list = [get_coauth_name(coauth_dir, c)[1] for c in coauths]
+            coauth_surnames = ', '.join(coauth_surname_list[:-1])
+            if len(coauth_surname_list) > 2:
+                coauth_surnames += ',' # Oxford comma
+            if len(coauth_surname_list) > 1:
+                coauth_surnames += ' & '
+            coauth_surnames += coauth_surname_list[-1]
+            auth_entry.append(f"  - *with {coauth_surnames}*")
     auth_entry.append('')
     return '\n'.join(auth_entry)
 
