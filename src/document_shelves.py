@@ -3,7 +3,7 @@ import configparser as cp
 
 top_dir = Path(__file__).absolute().parent.parent
 shelves_dir = top_dir / "shelves"
-auths = [x.name for x in shelves_dir.iterdir()]
+auths = [x.name for x in sorted(shelves_dir.iterdir())]
 
 def get_coauth_name(coauths_dir, auth):
     ccf = cp.ConfigParser()
