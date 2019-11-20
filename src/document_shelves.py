@@ -25,7 +25,7 @@ def make_author_entry(auth):
         acf = cp.ConfigParser()
         acf.read(auth_info)
         first, last = acf['NAME']['first_names'], acf['NAME']['surname']
-        auth_entry = [f"\n:book: {last}, {first}:"]
+        auth_entry = [f"\n ### [:book: {last}, {first}]({auth}):"]
     else:
         auth_entry = [f"\n- {auth}"]
     auth_year_list = [x.name for x in (shelves_dir / auth).iterdir() if x.is_dir()]
