@@ -38,13 +38,13 @@ def make_author_entry(auth):
         acf.read(auth_info)
         first, last = acf['NAME']['first_names'], acf['NAME']['surname']
         book_anchor = f"#book-{auth}".replace('_','-')
-        auth_entry = [f"\n ### [:book: {last}, {first}]({book_anchor}):"]
+        auth_entry = [f"\n### [:book: {last}, {first}]({book_anchor}):"]
     else:
         auth_entry = [f"\n- {auth}"]
     auth_year_list = [x.name for x in (shelves_dir / auth).iterdir() if x.is_dir()]
-    for n, year in enumerate(sorted(auth_year_list)):
+    for year in sorted(auth_year_list):
         title, edition, coauths = book_lookup(auth, year)
-        auth_str = f"  {n+1}) {year} — *{title}*"
+        auth_str = f"  - {year} — *{title}*"
         if edition is not None: auth_str += f" ({edition}e.)"
         if coauths is not None:
             coauth_dir = shelves_dir / auth / year / 'coauths'
