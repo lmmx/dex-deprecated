@@ -2,6 +2,18 @@
 
 - [Aim] Digitising and cross-referencing mathematics textbook index pages
 
+## Shelves
+
+Below is a list of books stored:
+
+[//]: # (AUTOWRITE::Do not edit this section manually:START)
+
+- Strang, Gilbert:
+  1) 1980 — Linear Algebra and Its Applications (2e.)
+  2) 2019 — Linear Algebra and Learning from Data (1e.)
+
+[//]: # (AUTOWRITE::Do not edit this section manually:END)
+
 ## Layout
 
 - PDFs (corresponding to the physical books) are stored under `shelves/`
@@ -12,14 +24,3 @@
   - e.g. `1980_linear-algebra-and-its-applications-2e.pdf`
 - For both size and copyright reasons, the PDFs themselves only contain index
   pages (fair use) and are not uploaded in this repository.
-
-## Shelves
-
-- Below is a list of books stored
-
-[//]: # (Do not edit this section manually:START)
-
-- TEST 1
-- TEST 2
-
-[//]: # (Do not edit this section manually:END)
