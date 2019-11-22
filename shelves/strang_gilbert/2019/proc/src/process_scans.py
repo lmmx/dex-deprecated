@@ -14,7 +14,7 @@ from image_funcs import (
     grade,
     show_bbox_overlay,
 )
-from gradients import get_grads, get_grad, show_grad
+from gradients import get_grads, get_grad, show_grad, contour_line, scan_sparsity
 from skimage.color import rgb2grey
 
 doc_dir = Path("__file__").resolve().parent / "doc"

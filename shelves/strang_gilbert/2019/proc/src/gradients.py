@@ -7,6 +7,7 @@ from imageio import imread
 from skimage.color import rgb2grey
 from cv2 import Canny, imread as cv_imread
 from scipy.ndimage import sobel
+from skimage.measure import find_contours
 
 ###################### Basic image functions ##########################
 
@@ -129,6 +130,62 @@ def bbox(img):
     a = np.where(img != 0)
     bbox = np.min(a[0]), np.max(a[0]), np.min(a[1]), np.max(a[1])
     return bbox
+
+def contour_line(img, level=254, connectedness="high"):
+    """
+    Contour a binary image, used to turn the line into a single
+    connected entity. Connectedness "high" gives 8-connectedness,
+    and "low" gives 4-connectedness.
+    """
+    contours = find_contours(img, level=level, fully_connected=connectedness)
+    plt.imshow(img, cmap=plt.get_cmap('gray'))
+    for n, contour in enumerate(contours):
+        plt.plot(contour[:, 1], contour[:, 0], linewidth=2)
+    plt.show()
+    return
+
+def estimate_contour_sparsity(y_win_size, x_win_size, c_len=0.9, c_width=1):
+    """
+    Given the size of a scanline window used in scan_sparsity(),
+    estimate the expected maximum sparsity of the window containing
+    the contour line for a page, so as to distinguish between empty
+    regions and sparse ones.
+
+    Default: estimate for a line width of 1 pixel, and for a line expected to
+    stretch across 90% of the total width of the window (if expecting it to
+    span the full width [when contoured with skimage.measure.find_contours],
+    e.g. if using a span away from the sides of the image, use c_len=1.0).
+    """
+    estim = c_len * c_width / (y_win_size * x_win_size)
+    sparsity = 1 - estim
+    return sparsity
+
+def scan_sparsity(img, win_size=100, x_win=None, verbose=True, estim_c_len=1.):
+    """
+    Calculate and print sparsity values for windows of scanlines
+    (default is 100 scanlines at a time). Additionally, find 'unconnected columns'
+    and quantify how wide they are (i.e. the maximum number of unconnected columns
+    in each window of scanlines). These unconnected columns represent the
+    non-connectedness of the scanline window across this region, and are grounds for
+    excluding the region from the search for the page contour.
+    """
+    if x_win is None:
+        x_win = (300, 800)
+    if verbose:
+        print(f"Using x_win values of {x_win}, y window sizes of {win_size}")
+    x_win_start, x_win_end = x_win
+    cutoff = estimate_contour_sparsity(win_size, abs(np.subtract(*x_win)), estim_c_len)
+    sparsities = []
+    for win in np.arange(0, len(img), win_size):
+        im = img[win:win+win_size, x_win_start:x_win_end]
+        sparsity = np.sum(im == 0) / np.prod(im.shape[0:2])
+        if verbose:
+            if sparsity < cutoff:
+                print(f"Rows {win}-{win+win_size}: sparsity = {100 * sparsity}%")
+            else:
+                print(f"Rows {win}-{win+win_size} rejected (too sparse: {sparsity})")
+        sparsities.append([(win,win+win_size),sparsity])
+    return sparsities
 
 ###################### Image channel functions #########################
 
