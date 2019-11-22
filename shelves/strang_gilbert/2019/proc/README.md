@@ -30,6 +30,13 @@ bg_sample = bg[3540:3655, 0:120]
 show_img(bg_sample)
 ```
 
+As a one-line function to display from the list of images:
+
+```python
+def pic_n(n):
+  show_img(grade(brighten(boost_contrast(scale_img(imread(img_dir / images[n])[3000:,:]))))
+```
+
 Next display a cumulative sum of the sum of scanlines (i.e. image rows)
 to see how there is a 'plateau' corresponding to 'empty' scanlines
 
