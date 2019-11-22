@@ -11,29 +11,6 @@ from skimage.measure import find_contours
 
 ###################### Basic image functions ##########################
 
-def read_image(img_name, grey=False, use_opencv=False, uint8=False):
-    """
-    Read an image file (.png) into a numpy array in which each entry is
-    a row of pixels (i.e. ``len(img)`` is the image height in px. If
-    grey is True (default is False), returns a grayscale image (dtype
-    uint8 if RGBA, and dtype float32 if greyscale). use_opencv uses the
-    `cv2.imread` function rather than `imageio.imread`, which always
-    returns a dtype of uint8. uint8 will enforce dtype of uint8 (i.e.
-    for greyscale from `imageio.imread`) if set to True, but defaults
-    to False.
-    """
-    data_dir = Path('..') / 'img'
-    if use_opencv:
-        if grey:
-            img = cv_imread(data_dir / img_name, 0)
-        else:
-            img = cv_imread(data_dir / img_name)
-    else:
-        img = imread(data_dir / img_name, as_gray=grey)
-        if uint8 and img.dtype != 'uint8':
-            img = np.uint8(img)
-    return img
-
 def show_image(img, bw=False, alpha=1, no_ticks=True, title='', suppress_show=True):
     """
     Show an image using a provided pixel row array.
@@ -50,14 +27,6 @@ def show_image(img, bw=False, alpha=1, no_ticks=True, title='', suppress_show=Tr
     if not suppress_show:
         plt.show()
     return
-
-def show_original(img_name):
-    """
-    Debugging/development: produce and display an original image
-    """
-    img = read_image(img_name)
-    show_image(img)
-    return img
 
 def save_image(image, figsize, save_path, ticks=False, grey=True):
     """
@@ -199,16 +168,3 @@ def to_rgb(im):
     ret = np.empty((w, h, 3), dtype=np.uint8)
     ret[:, :, 2] = ret[:, :, 1] = ret[:, :, 0] = im
     return ret
-
-###################### Watermarking functions ##########################
-
-def load_wm():
-    img_name = 'kirby003_01a.png'
-    img = read_image(img_name)
-    watered = img[6:20, 13:119]
-    return watered
-
-def show_wm(img):
-    watered = get_wm(img)
-    show_image(watered)
-    return
