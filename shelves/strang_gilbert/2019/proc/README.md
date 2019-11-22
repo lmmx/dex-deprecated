@@ -38,6 +38,8 @@ plt.plot(np.cumsum(np.sum(bg[3000:4000,:], axis=(1))))
 plt.show()
 ```
 
+![](img/documentation/index-page-scanline-cumulative-plot.png)
+
 The idea is that the regions where it rises can be 'windowed', i.e. take
 the length of this 'rise' (the number of scanlines which enclose the region
 in which the count of edges is increasing) as the size of a 'window'. Take
