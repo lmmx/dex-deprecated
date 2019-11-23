@@ -196,6 +196,8 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=True, estim_c_len=1.):
         print(f"Based on FFT sideconnection, predicted window for the line is {most_sideconn_window}")
         if most_midsparse_window == most_sideconn_window:
             print("The predictions agree")
+        else:
+            print("Uh oh, the predictions disagree! Time to look at sparsity and clip_rise too?")
     return sparsities
 
 
@@ -246,28 +248,27 @@ def plot_fft_spectrum(img, prune_percentile=95):
     imf = fft2(img)
     ax1.imshow(np.abs(imf), norm=LogNorm(vmin=5))
     ax2 = fig.add_subplot(4,1,2)
-    mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
+    #mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
+    mod_log = img
     ax2.imshow(mod_log)
     ax3 = fig.add_subplot(4,1,3)
-    mod_log_maxima = prune_fft(None, prune_percentile=prune_percentile, im_fft=mod_log)
+    mod_log_maxima = prune_fft(img, prune_percentile=prune_percentile)
     ax3.imshow(mod_log_maxima)
     ax4 = fig.add_subplot(4,1,4)
     ax4.imshow(img)
     plt.show()
     return
 
-def prune_fft(img, prune_percentile=95, im_fft=None):
+def prune_fft(img, prune_percentile=95, brighten_grade_img=False, boost_fft=False):
     """
-    Take the 2D FFT of an image and prune values using given percentile,
-    optionally using a precomputed FFT (passed in as `im_fft`).
+    Take the 2D FFT of an image and prune values using given percentile.
     """
-    if img is None: assert im_fft is not None
-    if im_fft is None:
-        im_fft = fft2(img)
+    if brighten_grade_img: img = BG_img(img)
+    im_fft = fft2(img)
+    if boost_fft:
         im_fft = brighten(boost_contrast(scale_img(np.log(np.abs(im_fft)))))
     else:
-        # Do not alter precomputed FFT passed in as a parameter
-        im_fft = np.copy(im_fft)
+        im_fft = np.log(np.abs(im_fft))
     im_fft[np.where(im_fft < np.percentile(im_fft, prune_percentile))] = 0
     return im_fft
 
@@ -276,7 +277,7 @@ def show_max_pruned_cols(img, pruned_fft=None):
     Display a summary of the pruned FFT from prune_fft into vertical bars
     representing the maximum value per column.
     """
-    if pruned_fft_fft is None:
+    if pruned_fft is None:
         pruned = prune_fft(img)
     else:
         pruned = pruned_fft
