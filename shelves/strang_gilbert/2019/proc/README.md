@@ -55,3 +55,12 @@ a single connected line this 'window function' will be non-zero for the whole
 width of the scanline window. If the region corresponds to columnar text, then
 there will be gaps in the window. If the region corresponds to a page number,
 the 'window function' will mostly return zero along the width of the image.
+
+This is implemented using Fast Fourier Transform (FFT) of the gradient image,
+which shows a vertical pattern corresponding to the horizontal line at either
+side of the spectrum, which can be characterised by:
+- the sparsity of the region in the middle (high value `midsparsity`)
+  - returned by `calculate_mid_sparsity`, calculated for the top quintile
+  - "top quintile" means `np.percentile` is called in `image_funcs.py`
+    function `prune_fft` with the `prune_percentile` parameter set to 95.
+- the unbroken-ness of the positive regions at the edges

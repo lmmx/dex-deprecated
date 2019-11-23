@@ -161,22 +161,41 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=True, estim_c_len=1.):
     x_win_start, x_win_end = x_win
     cutoff = estimate_contour_sparsity(win_size, abs(np.subtract(*x_win)), estim_c_len)
     sparsities = []
+    clip_ratio = 0.6
     for win in np.arange(0, len(img), win_size):
         im = img[win:win+win_size, x_win_start:x_win_end]
         sparsity = np.sum(im == 0) / np.prod(im.shape[0:2])
         if sparsity < cutoff:
             fft_maxima = prune_fft(im)
             midsparse = calculate_mid_sparsity(fft_maxima)
+            if midsparse > 0.01:
+                sideconn = calculate_side_connection(fft_maxima)
+                clipped_sideconn = calculate_side_connection(fft_maxima, clip_ratio)
+                clip_rise = 100 * (clipped_sideconn - sideconn) / sideconn
+            else:
+                sideconn = 0
+                clipped_sideconn = 0
+                clip_rise = 0
             if verbose:
-                print(f"Rows {win}-{win+win_size}: sparsity = {100*sparsity}%; FFT mid-sparsity: {100*midsparse}%")
+                print(f"Rows {win}-{win+win_size}: sparsity = {100*sparsity:.2f}%; "
+                + f"FFT mid-sparse: {100*midsparse:.2f}%; "
+                + f"FFT side conn.: {100*sideconn:.2f}%"
+                + f"(clipped at {clip_ratio*100:.0f}%): "
+                + f"{100*clipped_sideconn:.2f}% ({clip_rise:.0f}% change)")
         else:
-            midsparse=0
+            midsparse = 0
+            sideconn = 0
+            clip_rise = 0
             if verbose:
                 print(f"Rows {win}-{win+win_size} rejected (too sparse: {sparsity})")
-        sparsities.append([(win,win+win_size),sparsity,midsparse])
+        sparsities.append([(win,win+win_size),sparsity,midsparse,sideconn,clip_rise])
     if verbose:
         most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[0][0]
+        most_sideconn_window = list(reversed(sorted(sparsities, key=lambda k: k[3])))[0][0]
         print(f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}")
+        print(f"Based on FFT sideconnection, predicted window for the line is {most_sideconn_window}")
+        if most_midsparse_window == most_sideconn_window:
+            print("The predictions agree")
     return sparsities
 
 
@@ -191,6 +210,28 @@ def calculate_mid_sparsity(img_fft):
     zero_col_end = zero_col_start + np.where(col_sums[zero_col_start:] != 0)[0][0]
     sparsity = (zero_col_end - zero_col_start) / len(col_sums)
     return sparsity
+
+
+def calculate_side_connection(pruned, clip_ratio=None):
+    """
+    Calculate the proportion of FFT side pixels that are maximal (i.e. in the
+    top quintile obtained after pruning), which is being used to determine the
+    presence of a line [page boundary].
+    """
+    left_side_end = np.where(np.max(pruned, axis=0) == 0)[0][0]
+    if clip_ratio is not None:
+        left_side_end = int(round(left_side_end * clip_ratio))
+    r_offset = np.where(np.max(np.fliplr(pruned), axis=0) == 0)[0][0]
+    if clip_ratio is not None:
+        r_offset = int(round(r_offset * clip_ratio))
+    right_side_start = pruned.shape[1] - r_offset
+    # Max. values are in cols (0:left_side_end), (right_side_start:pruned.shape[1]
+    l_side = pruned[:,0:left_side_end]
+    r_side = pruned[:,right_side_start:pruned.shape[1]]
+    left_connection = np.mean(l_side)
+    right_connection = np.mean(r_side)
+    side_connection = (left_connection + right_connection) / 2
+    return side_connection
 
 
 def plot_fft_spectrum(img, prune_percentile=95):
@@ -208,7 +249,7 @@ def plot_fft_spectrum(img, prune_percentile=95):
     mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
     ax2.imshow(mod_log)
     ax3 = fig.add_subplot(4,1,3)
-    mod_log_maxima = prune_fft(None, prune_percentile=95, im_fft=mod_log)
+    mod_log_maxima = prune_fft(None, prune_percentile=prune_percentile, im_fft=mod_log)
     ax3.imshow(mod_log_maxima)
     ax4 = fig.add_subplot(4,1,4)
     ax4.imshow(img)
@@ -229,3 +270,16 @@ def prune_fft(img, prune_percentile=95, im_fft=None):
         im_fft = np.copy(im_fft)
     im_fft[np.where(im_fft < np.percentile(im_fft, prune_percentile))] = 0
     return im_fft
+
+def show_max_pruned_cols(img, pruned_fft=None):
+    """
+    Display a summary of the pruned FFT from prune_fft into vertical bars
+    representing the maximum value per column.
+    """
+    if pruned_fft_fft is None:
+        pruned = prune_fft(img)
+    else:
+        pruned = pruned_fft
+    show_img(np.repeat(np.max(pruned.T, axis=1),
+             pruned.T.shape[1]).reshape(pruned.T.shape).T)
+    return
