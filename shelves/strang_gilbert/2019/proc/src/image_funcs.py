@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from imageio import imread
 from pathlib import Path
 from math import sqrt
@@ -8,7 +9,8 @@ from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 from skimage.color import rgb2grey
 from gradients import auto_canny, get_grad, to_rgb, show_image, bbox
-
+from skimage.measure import find_contours
+from scipy.fftpack import fft2
 
 def calculate_contrast(img):
     # Contrast = sqrt(sum(I - I_bar)^2 / (M*N) )
@@ -95,6 +97,7 @@ def show_bbox_overlay(img, canny=True):
     return
 
 
+
 def show_img(img, bw=False, no_ticks=False, title=None):
     if not bw:
         plt.imshow(img)
@@ -111,3 +114,118 @@ def plot_img_hist(img):
         plt.hist(img[:, :, i])
     plt.show()
     return
+
+
+def contour_line(img, level=254, connectedness="high"):
+    """
+    Contour a binary image, used to turn the line into a single
+    connected entity. Connectedness "high" gives 8-connectedness,
+    and "low" gives 4-connectedness.
+    """
+    contours = find_contours(img, level=level, fully_connected=connectedness)
+    plt.imshow(img, cmap=plt.get_cmap('gray'))
+    for n, contour in enumerate(contours):
+        plt.plot(contour[:, 1], contour[:, 0], linewidth=2)
+    plt.show()
+    return
+
+def estimate_contour_sparsity(y_win_size, x_win_size, c_len=0.9, c_width=1):
+    """
+    Given the size of a scanline window used in scan_sparsity(),
+    estimate the expected maximum sparsity of the window containing
+    the contour line for a page, so as to distinguish between empty
+    regions and sparse ones.
+
+    Default: estimate for a line width of 1 pixel, and for a line expected to
+    stretch across 90% of the total width of the window (if expecting it to
+    span the full width [when contoured with skimage.measure.find_contours],
+    e.g. if using a span away from the sides of the image, use c_len=1.0).
+    """
+    estim = c_len * c_width / (y_win_size * x_win_size)
+    sparsity = 1 - estim
+    return sparsity
+
+def scan_sparsity(img, win_size=100, x_win=None, verbose=True, estim_c_len=1.):
+    """
+    Calculate and print sparsity values for windows of scanlines
+    (default is 100 scanlines at a time). Additionally, find 'unconnected columns'
+    and quantify how wide they are (i.e. the maximum number of unconnected columns
+    in each window of scanlines). These unconnected columns represent the
+    non-connectedness of the scanline window across this region, and are grounds for
+    excluding the region from the search for the page contour.
+    """
+    if x_win is None:
+        x_win = (300, 800)
+    if verbose:
+        print(f"Using x_win values of {x_win}, y window sizes of {win_size}")
+    x_win_start, x_win_end = x_win
+    cutoff = estimate_contour_sparsity(win_size, abs(np.subtract(*x_win)), estim_c_len)
+    sparsities = []
+    for win in np.arange(0, len(img), win_size):
+        im = img[win:win+win_size, x_win_start:x_win_end]
+        sparsity = np.sum(im == 0) / np.prod(im.shape[0:2])
+        if sparsity < cutoff:
+            fft_maxima = prune_fft(im)
+            midsparse = calculate_mid_sparsity(fft_maxima)
+            if verbose:
+                print(f"Rows {win}-{win+win_size}: sparsity = {100*sparsity}%; FFT mid-sparsity: {100*midsparse}%")
+        else:
+            midsparse=0
+            if verbose:
+                print(f"Rows {win}-{win+win_size} rejected (too sparse: {sparsity})")
+        sparsities.append([(win,win+win_size),sparsity,midsparse])
+    if verbose:
+        most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[0][0]
+        print(f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}")
+    return sparsities
+
+
+def calculate_mid_sparsity(img_fft):
+    col_sums = np.sum(img_fft, axis=0)
+    mid_x = len(col_sums) // 2
+    mid_sparse_x_start = reversed(col_sums)
+    # Get the index of the first nonzero entry away from the x midpoint
+    first_nonzero = np.where(col_sums[::-1][mid_x:] != 0)[0][0]
+    zero_col_start = mid_x - first_nonzero
+    # Get the index of the last nonzero entry away from the first zero entry
+    zero_col_end = zero_col_start + np.where(col_sums[zero_col_start:] != 0)[0][0]
+    sparsity = (zero_col_end - zero_col_start) / len(col_sums)
+    return sparsity
+
+
+def plot_fft_spectrum(img, prune_percentile=95):
+    """
+    Plot the FFT spectrum of the image, along with a high contrast version,
+    and then along with a pruned version of this high contrast spectrum, in which
+    only the values above the bottom {prune_percentile} are kept (e.g. at 95%,
+    only the top 5%ile of values is displayed).
+    """
+    fig = plt.figure()
+    ax1 = fig.add_subplot(4,1,1)
+    imf = fft2(img)
+    ax1.imshow(np.abs(imf), norm=LogNorm(vmin=5))
+    ax2 = fig.add_subplot(4,1,2)
+    mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
+    ax2.imshow(mod_log)
+    ax3 = fig.add_subplot(4,1,3)
+    mod_log_maxima = prune_fft(None, prune_percentile=95, im_fft=mod_log)
+    ax3.imshow(mod_log_maxima)
+    ax4 = fig.add_subplot(4,1,4)
+    ax4.imshow(img)
+    plt.show()
+    return
+
+def prune_fft(img, prune_percentile=95, im_fft=None):
+    """
+    Take the 2D FFT of an image and prune values using given percentile,
+    optionally using a precomputed FFT (passed in as `im_fft`).
+    """
+    if img is None: assert im_fft is not None
+    if im_fft is None:
+        im_fft = fft2(img)
+        im_fft = brighten(boost_contrast(scale_img(np.log(np.abs(im_fft)))))
+    else:
+        # Do not alter precomputed FFT passed in as a parameter
+        im_fft = np.copy(im_fft)
+    im_fft[np.where(im_fft < np.percentile(im_fft, prune_percentile))] = 0
+    return im_fft

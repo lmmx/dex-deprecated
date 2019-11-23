@@ -13,8 +13,10 @@ from image_funcs import (
     plot_img_hist,
     grade,
     show_bbox_overlay,
+    contour_line,
+    scan_sparsity,
 )
-from gradients import get_grads, get_grad, show_grad, contour_line, scan_sparsity
+from gradients import get_grads, get_grad, show_grad
 from skimage.color import rgb2grey
 
 doc_dir = Path("__file__").resolve().parent / "doc"
