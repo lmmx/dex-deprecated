@@ -36,6 +36,14 @@ def BG_img(img):
 brightened_graded = BG_img(test_img)
 # Assemble into individual PDFs
 
+def calculate_sparsities():
+    for i in range(0, len(images)):
+        print(f"Calculating sparsity for image {i}")
+        im = imread(img_dir / images[i])
+        bg = BG_img(im)
+        s = scan_sparsity(bg)
+        print()
+
 # authors: [420-422].jpg
 # topics: [423-431].jpg
 # symbols: 432.jpg
