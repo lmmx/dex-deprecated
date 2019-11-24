@@ -199,8 +199,8 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
     for win in np.arange(0, len(img), win_size // 2):
         im = img[win:win+win_size, x_win_start:x_win_end]
         sparsity = np.sum(im == 0) / np.prod(im.shape[0:2])
-        fully_connected = np.all(np.max(im, axis=0) != 0)
-        if not fully_connected:
+        full_span = np.all(np.max(im, axis=0) != 0)
+        if not full_span:
             midsparse = 0
             sideconn = 0
             clip_rise = 0
@@ -232,8 +232,8 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
             clip_rise = 0
             if v_verbose:
                 print(f"Rows {win}-{win+win_size} rejected (too sparse: {sparsity})")
-        connection_bit = int(fully_connected)
-        sparsities.append([(win,win+win_size),sparsity,midsparse,sideconn,clip_rise,connection_bit])
+        span_bit = int(full_span)
+        sparsities.append([(win,win+win_size),sparsity,midsparse,sideconn,clip_rise,span_bit])
     if verbose:
         most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[0][0]
         bad_midspars = np.all([s[2] == 0 for s in sparsities])
