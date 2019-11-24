@@ -82,6 +82,11 @@ after which any double hits are taken as indicating it lies in the middle
 of the two window regions, and is subsequently cropped to this by the function
 `trim_window` (called in `scan_sparsity`).
 
+![](img/documentation/example-trimmed-fft-spectra-plot.png)
+
+> _Above:_ output of `process_scans.py`⠶`example_scan_fft_plot()`, demonstrating the
+> effect of scanning for the line and cropping to this window.
+
 The process is made a lot faster by excluding the majority of the image from
 the search for a page boundary: only the bottom 20% is examined (since this
 is where it tends to be in all images), by setting `crop_from_top` to `0.8`

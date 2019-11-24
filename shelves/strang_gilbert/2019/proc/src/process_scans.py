@@ -34,7 +34,7 @@ def BG_img(img):
     return bg
 
 
-def calculate_sparsities(crop_from_top=0.8, VISUALISE=False, verbosity=1):
+def calculate_sparsities(crop_from_top=0.8, view=False, verbosity=1):
     """
     Calculate sparsities, after chopping off the top by a ratio
     of {crop_from_top} (e.g. 0.6 deducts 60% of image height).
@@ -44,7 +44,7 @@ def calculate_sparsities(crop_from_top=0.8, VISUALISE=False, verbosity=1):
         im = imread(img_dir / images[i])
         crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
         bg = BG_img(crop_im)
-        s = scan_sparsity(bg, VISUALISE=VISUALISE, verbosity=verbosity)
+        sel, sparsities = scan_sparsity(bg, VISUALISE=view, verbosity=verbosity)
         print()
 
 
@@ -56,6 +56,21 @@ def example_fft_plot():
     bg = BG_img(img)
     plot_fft_spectrum(bg[3600:3700,300:800])
     return
+
+
+def example_scan_fft(crop_from_top=0.8, view=False, verbosity=1):
+    """
+    Give an example usage of scan_sparsity to give another FFT plot.
+    """
+    im = imread(img_dir / images[0])
+    crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
+    bg = BG_img(crop_im)
+    x_win = (300,800) # Default window for scan_sparsity if not provided
+    sel, sparsities = scan_sparsity(bg, VISUALISE=view, verbosity=verbosity)
+    sel_im = bg[sel[0][0]:sel[0][1], x_win[0]:x_win[1]]
+    plot_fft_spectrum(sel_im)
+    return
+
 
 # Assemble into individual PDFs
 

@@ -338,7 +338,7 @@ def scan_sparsity(
                     f"--> The FFT sideconnection for "
                     +f"{most_sideconn_window} is {msw_sideconn}"
                 )
-    return sparsities
+    return selections, sparsities
 
 
 def calculate_mid_sparsity(img_fft):
