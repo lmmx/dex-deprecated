@@ -64,3 +64,17 @@ side of the spectrum, which can be characterised by:
   - "top quintile" means `np.percentile` is called in `image_funcs.py`
     function `prune_fft` with the `prune_percentile` parameter set to 95.
 - the unbroken-ness of the positive regions at the edges
+
+The process is made a lot faster by excluding the majority of the image from
+the search for a page boundary: only the bottom 20% is examined (since this
+is where it tends to be in all images), by setting `crop_from_top` to `0.8`
+in the parameter to the function `calculate_sparsities` in `process_scans.py`.
+
+![](img/documentation/page-boundary-anim.gif)
+
+Fitting a contour model to the located regions (8-connected, i.e. "high"
+`fully_connected` parameter setting to `skimage.measure.find_contours`) is
+then much more precise (making the code fast/efficient), and has achieved
+100% accuracy (except for one photo with my thumb in it and no visible page
+boundary...). All then remaining to do is select the longest contour, and
+merge multiple to span the width of the region if necessary.

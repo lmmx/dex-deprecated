@@ -21,8 +21,9 @@ from skimage.color import rgb2grey
 
 doc_dir = Path("__file__").resolve().parent / "doc"
 img_dir = Path("__file__").resolve().parent / "img"
-assert doc_dir.exists() and doc_dir.is_dir()
-assert img_dir.exists() and img_dir.is_dir()
+dir_msg = "Please run this script from its parent directory, proc/"
+assert doc_dir.exists() and doc_dir.is_dir(), dir_msg
+assert img_dir.exists() and img_dir.is_dir(), dir_msg
 
 images = [x.name for x in img_dir.iterdir() if x.suffix == ".jpg"]
 assert len(images) > 0
@@ -36,12 +37,17 @@ def BG_img(img):
 brightened_graded = BG_img(test_img)
 # Assemble into individual PDFs
 
-def calculate_sparsities():
+def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
+    """
+    Calculate sparsities, after chopping off the top by a ratio
+    of {crop_from_top} (e.g. 0.6 deducts 60% of image height).
+    """
     for i in range(0, len(images)):
         print(f"Calculating sparsity for image {i}")
         im = imread(img_dir / images[i])
-        bg = BG_img(im)
-        s = scan_sparsity(bg)
+        crop_im = im[round(im.shape[0]*crop_from_top):,:,:]
+        bg = BG_img(crop_im)
+        s = scan_sparsity(bg, VISUALISE=VISUALISE)
         print()
 
 # authors: [420-422].jpg

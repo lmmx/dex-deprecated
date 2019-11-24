@@ -146,12 +146,13 @@ def estimate_contour_sparsity(y_win_size, x_win_size, c_len=0.9, c_width=1):
     return sparsity
 
 
-def trim_window(win):
+def trim_window(win, verbose=False):
     """
     Given a window (a gradient image) chosen to contain the line of interest,
     trim off any blank rows from the top or the bottom of the window, to focus
     on the feature of interest.
     """
+    assert 0 not in win.shape
     if np.max(win[0:1,:], axis=1) == 0:
         # There is at least 1 blank line at the top
         n_from_top = np.where(np.max(win, axis=1) != 0)[0][0]
@@ -162,11 +163,17 @@ def trim_window(win):
         n_from_bottom = np.where(np.max(win[::-1,:], axis=1) != 0)[0][0]
     else:
         n_from_bottom = 0
-    trimmed = win[0 + n_from_top : 0 - n_from_bottom, :]
+    if n_from_bottom == 0:
+        trimmed = win[0 + n_from_top:, :]
+    else:
+        trimmed = win[0 + n_from_top : 0 - n_from_bottom, :]
+    if verbose:
+        print(f"Trimmed window by {n_from_top} from top, {n_from_bottom} from bottom")
+    assert 0 not in trimmed.shape
     return trimmed, n_from_top, n_from_bottom
 
 
-def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1.):
+def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISUALISE=False):
     """
     Calculate and print sparsity values for windows of scanlines
     (default is 100 scanlines at a time). Additionally, find 'unconnected columns'
@@ -246,10 +253,12 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1.):
             chosen_start += start_offset
             chosen_end -= end_offset
             print(f"The predictions agree: {chosen_start}-{chosen_end}")
-            show_img(trimmed)
+            if VISUALISE:
+                # show_img(trimmed)
+                contour_line(trimmed)
         elif bad_midspars and bad_sideconn:
             print("Hmm, who knows about this one")
-            for s in sparsities: print(s)
+            #for s in sparsities: print(s)
         else:
             mmw_start, mmw_end = most_midsparse_window
             if mmw_start in range(*most_sideconn_window) or mmw_end in range(*most_sideconn_window):
@@ -260,7 +269,9 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1.):
                 chosen_start += start_offset
                 chosen_end -= end_offset
                 print(f"Merged adjacent windows: new window {chosen_start}-{chosen_end}")
-                show_img(trimmed)
+                if VISUALISE:
+                    # show_img(trimmed)
+                    contour_line(trimmed)
             else:
                 print("Uh oh, the predictions disagree! Time to look at sparsity and clip_rise too?")
                 print(f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}")
