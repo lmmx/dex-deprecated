@@ -29,19 +29,12 @@ assert img_dir.exists() and img_dir.is_dir(), dir_msg
 images = [x.name for x in img_dir.iterdir() if x.suffix == ".jpg"]
 assert len(images) > 0
 
-test_img = imread(img_dir / images[0])
-
-
 def BG_img(img):
     bg = grade(brighten(boost_contrast(scale_img(img))))
     return bg
 
 
-brightened_graded = BG_img(test_img)
-# Assemble into individual PDFs
-
-
-def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
+def calculate_sparsities(crop_from_top=0.8, VISUALISE=False, verbosity=1):
     """
     Calculate sparsities, after chopping off the top by a ratio
     of {crop_from_top} (e.g. 0.6 deducts 60% of image height).
@@ -51,15 +44,20 @@ def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
         im = imread(img_dir / images[i])
         crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
         bg = BG_img(crop_im)
-        s = scan_sparsity(bg, VISUALISE=VISUALISE)
+        s = scan_sparsity(bg, VISUALISE=VISUALISE, verbosity=verbosity)
         print()
+
 
 def example_fft_plot():
     """
     Give an example usage of plot_fft_spectrum
     """
-    plot_fft_spectrum(brightened_graded[3600:3700,300:800])
+    img = imread(img_dir / images[0])
+    bg = BG_img(img)
+    plot_fft_spectrum(bg[3600:3700,300:800])
     return
+
+# Assemble into individual PDFs
 
 # authors: [420-422].jpg
 # topics: [423-431].jpg

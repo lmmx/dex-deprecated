@@ -179,7 +179,7 @@ def trim_window(win, verbose=False):
 
 
 def scan_sparsity(
-    img, win_size=100, x_win=None, verbose=1, estim_c_len=1.0, VISUALISE=False
+    img, win_size=100, x_win=None, verbosity=1, estim_c_len=1.0, VISUALISE=False
 ):
     """
     Calculate and print sparsity values for windows of scanlines
@@ -188,12 +188,15 @@ def scan_sparsity(
     in each window of scanlines). These unconnected columns represent the
     non-connectedness of the scanline window across this region, and are grounds for
     excluding the region from the search for the page contour.
+    Verbosity can be 0, 1, or 2 for differing levels of reported output.
     """
-    if type(verbose) is int and verbose == 1:
+    if verbosity == 1:
         verbose = True
         v_verbose = False
+    elif verbosity == 2:
+        verbose = v_verbose = True
     else:
-        v_verbose = True
+        verbose = v_verbose = False
     if x_win is None:
         x_win = (300, 800)
     if v_verbose:
@@ -203,6 +206,7 @@ def scan_sparsity(
     if v_verbose:
         print(f"Using cutoff value of {100*cutoff}%")
     sparsities = []
+    selections = []
     clip_ratio = 0.6
     for win in np.arange(0, len(img), win_size // 2):
         im = img[win : win + win_size, x_win_start:x_win_end]
@@ -246,78 +250,93 @@ def scan_sparsity(
         sparsities.append(
             [(win, win + win_size), sparsity, midsparse, sideconn, clip_rise, span_bit]
         )
-    if verbose:
-        most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[
-            0
-        ][0]
-        bad_midspars = np.all([s[2] == 0 for s in sparsities])
-        bad_sideconn = np.all([s[3] == 0 for s in sparsities])
-        if bad_sideconn:
-            if verbose:
-                print(
-                    " Side connection not used to distinguish: beware trusting only midsparsity!"
-                )
+    most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[
+        0
+    ][0]
+    bad_midspars = np.all([s[2] == 0 for s in sparsities])
+    bad_sideconn = np.all([s[3] == 0 for s in sparsities])
+    if bad_sideconn:
+        if verbose:
+            print(
+                " Side connection not used to distinguish: beware trusting only midsparsity!"
+            )
             if bad_midspars:
                 print(" Uh oh, both measures failed! No prediction can be made.")
-            most_sideconn_window = most_midsparse_window
-        else:
-            most_sideconn_window = list(
-                reversed(sorted(sparsities, key=lambda k: k[3]))
-            )[0][0]
-        if (
-            not (bad_midspars and bad_sideconn)
-            and most_midsparse_window == most_sideconn_window
+        most_sideconn_window = most_midsparse_window
+    else:
+        most_sideconn_window = list(
+            reversed(sorted(sparsities, key=lambda k: k[3]))
+        )[0][0]
+    if (
+        not (bad_midspars and bad_sideconn)
+        and most_midsparse_window == most_sideconn_window
+    ):
+        chosen_start, chosen_end = most_midsparse_window
+        pretrim = img[chosen_start:chosen_end, x_win_start:x_win_end]
+        trimmed, start_offset, end_offset = trim_window(pretrim)
+        chosen_start += start_offset
+        chosen_end -= end_offset
+        selections.append((chosen_start, chosen_end))
+        if verbose:
+            print(f"The predictions agree: {chosen_start}-{chosen_end}")
+        if v_verbose: print(selections[-1])
+        if VISUALISE:
+            # show_img(trimmed)
+            contour_line(trimmed)
+    elif bad_midspars and bad_sideconn:
+        selections.append((None, None))
+        if verbose:
+            print("Hmm, who knows about this one")
+        if v_verbose: print(selections[-1])
+        # for s in sparsities: print(s)
+    else:
+        mmw_start, mmw_end = most_midsparse_window
+        if mmw_start in range(*most_sideconn_window) or mmw_end in range(
+            *most_sideconn_window
         ):
-            chosen_start, chosen_end = most_midsparse_window
+            chosen_start = min(min(most_midsparse_window, most_sideconn_window))
+            chosen_end = max(max(most_midsparse_window, most_sideconn_window))
             pretrim = img[chosen_start:chosen_end, x_win_start:x_win_end]
             trimmed, start_offset, end_offset = trim_window(pretrim)
             chosen_start += start_offset
             chosen_end -= end_offset
-            print(f"The predictions agree: {chosen_start}-{chosen_end}")
-            if VISUALISE:
-                # show_img(trimmed)
-                contour_line(trimmed)
-        elif bad_midspars and bad_sideconn:
-            print("Hmm, who knows about this one")
-            # for s in sparsities: print(s)
-        else:
-            mmw_start, mmw_end = most_midsparse_window
-            if mmw_start in range(*most_sideconn_window) or mmw_end in range(
-                *most_sideconn_window
-            ):
-                chosen_start = min(min(most_midsparse_window, most_sideconn_window))
-                chosen_end = max(max(most_midsparse_window, most_sideconn_window))
-                pretrim = img[chosen_start:chosen_end, x_win_start:x_win_end]
-                trimmed, start_offset, end_offset = trim_window(pretrim)
-                chosen_start += start_offset
-                chosen_end -= end_offset
+            selections.append((chosen_start, chosen_end))
+            if verbose:
                 print(
                     f"Merged adjacent windows: new window {chosen_start}-{chosen_end}"
                 )
-                if VISUALISE:
-                    # show_img(trimmed)
-                    contour_line(trimmed)
-            else:
+            if v_verbose: print(selections[-1])
+            if VISUALISE:
+                # show_img(trimmed)
+                contour_line(trimmed)
+        else:
+            if verbose:
                 print(
-                    "Uh oh, the predictions disagree! Time to look at sparsity and clip_rise too?"
+                    "Uh oh, the predictions disagree!"
                 )
                 print(
-                    f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}"
+                    f"Based on FFT midsparsity, predicted window for the "
+                    +f"line is {most_midsparse_window}"
                 )
-                mmw_midsparsity = [
-                    s for s in sparsities if s[0][0] == most_midsparse_window[0]
-                ][0][2]
+            mmw_midsparsity = [
+                s for s in sparsities if s[0][0] == most_midsparse_window[0]
+            ][0][2]
+            if verbose:
                 print(
-                    f"--> The FFT midsparsity for {most_midsparse_window} is {mmw_midsparsity}"
+                    f"--> The FFT midsparsity for "
+                    +f"{most_midsparse_window} is {mmw_midsparsity}"
                 )
                 print(
-                    f"Based on FFT sideconnection, predicted window for the line is {most_sideconn_window}"
+                    f"Based on FFT sideconnection, predicted window "
+                    +f"for the line is {most_sideconn_window}"
                 )
-                msw_sideconn = [
-                    s for s in sparsities if s[0][0] == most_sideconn_window[0]
-                ][0][3]
+            msw_sideconn = [
+                s for s in sparsities if s[0][0] == most_sideconn_window[0]
+            ][0][3]
+            if verbose:
                 print(
-                    f"--> The FFT sideconnection for {most_sideconn_window} is {msw_sideconn}"
+                    f"--> The FFT sideconnection for "
+                    +f"{most_sideconn_window} is {msw_sideconn}"
                 )
     return sparsities
 
