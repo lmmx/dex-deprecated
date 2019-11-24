@@ -102,3 +102,16 @@ then much more precise (making the code fast/efficient), and has achieved
 100% accuracy (except for one photo with my thumb in it and no visible page
 boundary...). All then remaining to do is select the longest contour, and
 merge multiple to span the width of the region if necessary.
+
+![](img/documentation/page-boundary-anim-problems-slow.gif)
+
+> _Above:_ three cases of contours fitted to the cropped region, demonstrating some challenges to determining
+> the line. One features a long orange contour, the next has many small touching multicoloured contours,
+> the next has a long grey contour on the left which should be merged with the many small touching multicoloured
+> contours on the right.
+
+The remaining challenges to resolving the pixels corresponding to a line (the page boundary) are:
+- choosing the longest contour across the region (e.g. the long orange contour) and selecting it as the boundary line,
+- merging multiple disconnected but touching contours into one (e.g. the multicolour along the bottom) to constitute the boundary line,
+- finding the longest continuous contour with 'noise' around it (e.g. the long grey contour) and merging it with adjacent ones to
+  span the entirety of the region as a single boundary line.
