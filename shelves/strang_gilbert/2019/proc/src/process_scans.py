@@ -30,12 +30,15 @@ assert len(images) > 0
 
 test_img = imread(img_dir / images[0])
 
+
 def BG_img(img):
     bg = grade(brighten(boost_contrast(scale_img(img))))
     return bg
 
+
 brightened_graded = BG_img(test_img)
 # Assemble into individual PDFs
+
 
 def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
     """
@@ -45,10 +48,11 @@ def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
     for i in range(0, len(images)):
         print(f"Calculating sparsity for image {i}")
         im = imread(img_dir / images[i])
-        crop_im = im[round(im.shape[0]*crop_from_top):,:,:]
+        crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
         bg = BG_img(crop_im)
         s = scan_sparsity(bg, VISUALISE=VISUALISE)
         print()
+
 
 # authors: [420-422].jpg
 # topics: [423-431].jpg

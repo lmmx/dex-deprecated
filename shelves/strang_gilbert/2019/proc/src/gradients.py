@@ -10,7 +10,8 @@ from scipy.ndimage import sobel
 
 ###################### Basic image functions ##########################
 
-def show_image(img, bw=False, alpha=1, no_ticks=True, title='', suppress_show=True):
+
+def show_image(img, bw=False, alpha=1, no_ticks=True, title="", suppress_show=True):
     """
     Show an image using a provided pixel row array.
     If bw is True, displays single channel images in black and white.
@@ -18,14 +19,15 @@ def show_image(img, bw=False, alpha=1, no_ticks=True, title='', suppress_show=Tr
     if not bw:
         plt.imshow(img, alpha=alpha)
     else:
-        plt.imshow(img, alpha=alpha, cmap=plt.get_cmap('gray'))
+        plt.imshow(img, alpha=alpha, cmap=plt.get_cmap("gray"))
     if no_ticks:
         plt.xticks([]), plt.yticks([])
-    if title != '':
+    if title != "":
         plt.title = title
     if not suppress_show:
         plt.show()
     return
+
 
 def save_image(image, figsize, save_path, ticks=False, grey=True):
     """
@@ -36,7 +38,7 @@ def save_image(image, figsize, save_path, ticks=False, grey=True):
     """
     fig = plt.figure(figsize=figsize)
     if grey:
-        plt.imshow(image, cmap=plt.get_cmap('gray'))
+        plt.imshow(image, cmap=plt.get_cmap("gray"))
     else:
         plt.imshow(image)
     if not ticks:
@@ -45,7 +47,9 @@ def save_image(image, figsize, save_path, ticks=False, grey=True):
     fig.savefig(save_path)
     return
 
+
 ################# Image gradients and edge detection #############
+
 
 def get_grads(img):
     """
@@ -55,6 +59,7 @@ def get_grads(img):
     dx = sobel(img, 0)  # horizontal derivative
     dy = sobel(img, 1)  # vertical derivative
     return dx, dy
+
 
 def get_grad(img, normalise_rgb=False):
     if len(img.shape) == 3 and img.shape[-1] == 3:
@@ -66,11 +71,13 @@ def get_grad(img, normalise_rgb=False):
         mag *= 255.0 / np.max(mag)
     return np.uint8(mag)
 
+
 def show_grad(img):
     grad = get_grad(img)
-    plt.imshow(grad, cmap=plt.get_cmap('gray'))
+    plt.imshow(grad, cmap=plt.get_cmap("gray"))
     plt.show()
     return
+
 
 def auto_canny(image, sigma=0.4):
     """
@@ -90,6 +97,7 @@ def auto_canny(image, sigma=0.4):
     edged = Canny(image, lower, upper)
     return edged
 
+
 def bbox(img):
     """
     Return a bounding box (rmin, rmax, cmin, cmax). To retrieve the
@@ -101,6 +109,7 @@ def bbox(img):
 
 
 ###################### Image channel functions #########################
+
 
 def to_rgb(im):
     """

@@ -12,6 +12,7 @@ from gradients import auto_canny, get_grad, to_rgb, show_image, bbox
 from skimage.measure import find_contours
 from scipy.fftpack import fft2
 
+
 def calculate_contrast(img):
     # Contrast = sqrt(sum(I - I_bar)^2 / (M*N) )
     # See https://en.wikipedia.org/wiki/Contrast_(vision)#RMS_contrast
@@ -41,7 +42,7 @@ def brighten(img, yen_thresholding=True, unit_range=True):
         yen_threshold = threshold_yen(img)
         in_range = (0, yen_threshold)
     else:
-        in_range = np.percentile(img, (2,98))
+        in_range = np.percentile(img, (2, 98))
     if unit_range:
         min_max = (0, 1)
     else:
@@ -64,14 +65,16 @@ def grade(img, make_grey=True, make_uint8=True, sigma=None):
     Assumes image is either scaled at 0-1 or 0-255, and will
     convert to uint8 by scaling up to 255 if necessary.
     """
-    if sigma is None: sigma = 0.4
-    if make_grey: img = rgb2grey(img)
-    if make_uint8 and img.dtype != 'uint8':
-        if np.max(img) == 1.: img *= 255
+    if sigma is None:
+        sigma = 0.4
+    if make_grey:
+        img = rgb2grey(img)
+    if make_uint8 and img.dtype != "uint8":
+        if np.max(img) == 1.0:
+            img *= 255
         img = np.uint8(img)
     graded = auto_canny(img, sigma=sigma)
     return graded
-
 
 
 def show_bbox_overlay(img, canny=True):
@@ -89,22 +92,23 @@ def show_bbox_overlay(img, canny=True):
         edged = get_grad(rgb2grey(img))
     bb = bbox(edged)
     green = to_rgb(rgb2grey(np.copy(img)))
-    green[bb[0]:bb[1]+1, bb[2]:bb[3]+1] = [0, 100, 0]
+    green[bb[0] : bb[1] + 1, bb[2] : bb[3] + 1] = [0, 100, 0]
     show_image(input_img, alpha=1)
-    #plt.imshow(edged, cmap=plt.get_cmap('gray'), alpha=0.1)
+    # plt.imshow(edged, cmap=plt.get_cmap('gray'), alpha=0.1)
     plt.imshow(green, alpha=0.4)
     plt.show()
     return
-
 
 
 def show_img(img, bw=False, no_ticks=False, title=None):
     if not bw:
         plt.imshow(img)
     else:
-        plt.imshow(img, cmap=plt.get_cmap('gray'))
-    if no_ticks: plt.xticks([]), plt.yticks([])
-    if title is not None: plt.title = title
+        plt.imshow(img, cmap=plt.get_cmap("gray"))
+    if no_ticks:
+        plt.xticks([]), plt.yticks([])
+    if title is not None:
+        plt.title = title
     plt.show()
     return
 
@@ -123,11 +127,12 @@ def contour_line(img, level=254, connectedness="high"):
     and "low" gives 4-connectedness.
     """
     contours = find_contours(img, level=level, fully_connected=connectedness)
-    plt.imshow(img, cmap=plt.get_cmap('gray'))
+    plt.imshow(img, cmap=plt.get_cmap("gray"))
     for n, contour in enumerate(contours):
         plt.plot(contour[:, 1], contour[:, 0], linewidth=2)
     plt.show()
     return
+
 
 def estimate_contour_sparsity(y_win_size, x_win_size, c_len=0.9, c_width=1):
     """
@@ -153,18 +158,18 @@ def trim_window(win, verbose=False):
     on the feature of interest.
     """
     assert 0 not in win.shape
-    if np.max(win[0:1,:], axis=1) == 0:
+    if np.max(win[0:1, :], axis=1) == 0:
         # There is at least 1 blank line at the top
         n_from_top = np.where(np.max(win, axis=1) != 0)[0][0]
     else:
         n_from_top = 0
-    if np.max(win[-2:-1,:], axis=1) == 0:
+    if np.max(win[-2:-1, :], axis=1) == 0:
         # There is at least 1 blank line at the bottom
-        n_from_bottom = np.where(np.max(win[::-1,:], axis=1) != 0)[0][0]
+        n_from_bottom = np.where(np.max(win[::-1, :], axis=1) != 0)[0][0]
     else:
         n_from_bottom = 0
     if n_from_bottom == 0:
-        trimmed = win[0 + n_from_top:, :]
+        trimmed = win[0 + n_from_top :, :]
     else:
         trimmed = win[0 + n_from_top : 0 - n_from_bottom, :]
     if verbose:
@@ -173,7 +178,9 @@ def trim_window(win, verbose=False):
     return trimmed, n_from_top, n_from_bottom
 
 
-def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISUALISE=False):
+def scan_sparsity(
+    img, win_size=100, x_win=None, verbose=1, estim_c_len=1.0, VISUALISE=False
+):
     """
     Calculate and print sparsity values for windows of scanlines
     (default is 100 scanlines at a time). Additionally, find 'unconnected columns'
@@ -193,11 +200,12 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
         print(f"Using x_win values of {x_win}, y window sizes of {win_size}")
     x_win_start, x_win_end = x_win
     cutoff = estimate_contour_sparsity(win_size, abs(np.subtract(*x_win)), estim_c_len)
-    if v_verbose: print(f"Using cutoff value of {100*cutoff}%")
+    if v_verbose:
+        print(f"Using cutoff value of {100*cutoff}%")
     sparsities = []
     clip_ratio = 0.6
     for win in np.arange(0, len(img), win_size // 2):
-        im = img[win:win+win_size, x_win_start:x_win_end]
+        im = img[win : win + win_size, x_win_start:x_win_end]
         sparsity = np.sum(im == 0) / np.prod(im.shape[0:2])
         full_span = np.all(np.max(im, axis=0) != 0)
         if not full_span:
@@ -221,11 +229,13 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
                 clipped_sideconn = 0
                 clip_rise = 0
             if v_verbose:
-                print(f"Rows {win}-{win+win_size}: sparsity = {100*sparsity:.2f}%; "
-                + f"FFT mid-sparse: {100*midsparse:.2f}%; "
-                + f"FFT side conn.: {100*sideconn:.2f}%"
-                + f"(clipped at {clip_ratio*100:.0f}%): "
-                + f"{100*clipped_sideconn:.2f}% ({clip_rise:.0f}% change)")
+                print(
+                    f"Rows {win}-{win+win_size}: sparsity = {100*sparsity:.2f}%; "
+                    + f"FFT mid-sparse: {100*midsparse:.2f}%; "
+                    + f"FFT side conn.: {100*sideconn:.2f}%"
+                    + f"(clipped at {clip_ratio*100:.0f}%): "
+                    + f"{100*clipped_sideconn:.2f}% ({clip_rise:.0f}% change)"
+                )
         else:
             midsparse = 0
             sideconn = 0
@@ -233,20 +243,31 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
             if v_verbose:
                 print(f"Rows {win}-{win+win_size} rejected (too sparse: {sparsity})")
         span_bit = int(full_span)
-        sparsities.append([(win,win+win_size),sparsity,midsparse,sideconn,clip_rise,span_bit])
+        sparsities.append(
+            [(win, win + win_size), sparsity, midsparse, sideconn, clip_rise, span_bit]
+        )
     if verbose:
-        most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[0][0]
+        most_midsparse_window = list(reversed(sorted(sparsities, key=lambda k: k[2])))[
+            0
+        ][0]
         bad_midspars = np.all([s[2] == 0 for s in sparsities])
         bad_sideconn = np.all([s[3] == 0 for s in sparsities])
         if bad_sideconn:
             if verbose:
-                print(" Side connection not used to distinguish: beware trusting only midsparsity!")
+                print(
+                    " Side connection not used to distinguish: beware trusting only midsparsity!"
+                )
             if bad_midspars:
                 print(" Uh oh, both measures failed! No prediction can be made.")
             most_sideconn_window = most_midsparse_window
         else:
-            most_sideconn_window = list(reversed(sorted(sparsities, key=lambda k: k[3])))[0][0]
-        if not (bad_midspars and bad_sideconn) and most_midsparse_window == most_sideconn_window:
+            most_sideconn_window = list(
+                reversed(sorted(sparsities, key=lambda k: k[3]))
+            )[0][0]
+        if (
+            not (bad_midspars and bad_sideconn)
+            and most_midsparse_window == most_sideconn_window
+        ):
             chosen_start, chosen_end = most_midsparse_window
             pretrim = img[chosen_start:chosen_end, x_win_start:x_win_end]
             trimmed, start_offset, end_offset = trim_window(pretrim)
@@ -258,28 +279,46 @@ def scan_sparsity(img, win_size=100, x_win=None, verbose=1, estim_c_len=1., VISU
                 contour_line(trimmed)
         elif bad_midspars and bad_sideconn:
             print("Hmm, who knows about this one")
-            #for s in sparsities: print(s)
+            # for s in sparsities: print(s)
         else:
             mmw_start, mmw_end = most_midsparse_window
-            if mmw_start in range(*most_sideconn_window) or mmw_end in range(*most_sideconn_window):
+            if mmw_start in range(*most_sideconn_window) or mmw_end in range(
+                *most_sideconn_window
+            ):
                 chosen_start = min(min(most_midsparse_window, most_sideconn_window))
                 chosen_end = max(max(most_midsparse_window, most_sideconn_window))
                 pretrim = img[chosen_start:chosen_end, x_win_start:x_win_end]
                 trimmed, start_offset, end_offset = trim_window(pretrim)
                 chosen_start += start_offset
                 chosen_end -= end_offset
-                print(f"Merged adjacent windows: new window {chosen_start}-{chosen_end}")
+                print(
+                    f"Merged adjacent windows: new window {chosen_start}-{chosen_end}"
+                )
                 if VISUALISE:
                     # show_img(trimmed)
                     contour_line(trimmed)
             else:
-                print("Uh oh, the predictions disagree! Time to look at sparsity and clip_rise too?")
-                print(f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}")
-                mmw_midsparsity = [s for s in sparsities if s[0][0] == most_midsparse_window[0]][0][2]
-                print(f"--> The FFT midsparsity for {most_midsparse_window} is {mmw_midsparsity}")
-                print(f"Based on FFT sideconnection, predicted window for the line is {most_sideconn_window}")
-                msw_sideconn = [s for s in sparsities if s[0][0] == most_sideconn_window[0]][0][3]
-                print(f"--> The FFT sideconnection for {most_sideconn_window} is {msw_sideconn}")
+                print(
+                    "Uh oh, the predictions disagree! Time to look at sparsity and clip_rise too?"
+                )
+                print(
+                    f"Based on FFT midsparsity, predicted window for the line is {most_midsparse_window}"
+                )
+                mmw_midsparsity = [
+                    s for s in sparsities if s[0][0] == most_midsparse_window[0]
+                ][0][2]
+                print(
+                    f"--> The FFT midsparsity for {most_midsparse_window} is {mmw_midsparsity}"
+                )
+                print(
+                    f"Based on FFT sideconnection, predicted window for the line is {most_sideconn_window}"
+                )
+                msw_sideconn = [
+                    s for s in sparsities if s[0][0] == most_sideconn_window[0]
+                ][0][3]
+                print(
+                    f"--> The FFT sideconnection for {most_sideconn_window} is {msw_sideconn}"
+                )
     return sparsities
 
 
@@ -310,8 +349,8 @@ def calculate_side_connection(pruned, clip_ratio=None):
         r_offset = int(round(r_offset * clip_ratio))
     right_side_start = pruned.shape[1] - r_offset
     # Max. values are in cols (0:left_side_end), (right_side_start:pruned.shape[1]
-    l_side = pruned[:,0:left_side_end]
-    r_side = pruned[:,right_side_start:pruned.shape[1]]
+    l_side = pruned[:, 0:left_side_end]
+    r_side = pruned[:, right_side_start : pruned.shape[1]]
     left_connection = np.mean(l_side)
     right_connection = np.mean(r_side)
     side_connection = (left_connection + right_connection) / 2
@@ -326,26 +365,28 @@ def plot_fft_spectrum(img, prune_percentile=95):
     only the top 5%ile of values is displayed).
     """
     fig = plt.figure()
-    ax1 = fig.add_subplot(4,1,1)
+    ax1 = fig.add_subplot(4, 1, 1)
     imf = fft2(img)
     ax1.imshow(np.abs(imf), norm=LogNorm(vmin=5))
-    ax2 = fig.add_subplot(4,1,2)
-    #mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
+    ax2 = fig.add_subplot(4, 1, 2)
+    # mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
     mod_log = img
     ax2.imshow(mod_log)
-    ax3 = fig.add_subplot(4,1,3)
+    ax3 = fig.add_subplot(4, 1, 3)
     mod_log_maxima = prune_fft(img, prune_percentile=prune_percentile)
     ax3.imshow(mod_log_maxima)
-    ax4 = fig.add_subplot(4,1,4)
+    ax4 = fig.add_subplot(4, 1, 4)
     ax4.imshow(img)
     plt.show()
     return
+
 
 def prune_fft(img, prune_percentile=95, brighten_grade_img=False, boost_fft=False):
     """
     Take the 2D FFT of an image and prune values using given percentile.
     """
-    if brighten_grade_img: img = BG_img(img)
+    if brighten_grade_img:
+        img = BG_img(img)
     im_fft = fft2(img)
     if boost_fft:
         im_fft = brighten(boost_contrast(scale_img(np.log(np.abs(im_fft)))))
@@ -353,6 +394,7 @@ def prune_fft(img, prune_percentile=95, brighten_grade_img=False, boost_fft=Fals
         im_fft = np.log(np.abs(im_fft))
     im_fft[np.where(im_fft < np.percentile(im_fft, prune_percentile))] = 0
     return im_fft
+
 
 def show_max_pruned_cols(img, pruned_fft=None):
     """
@@ -363,6 +405,7 @@ def show_max_pruned_cols(img, pruned_fft=None):
         pruned = prune_fft(img)
     else:
         pruned = pruned_fft
-    show_img(np.repeat(np.max(pruned.T, axis=1),
-             pruned.T.shape[1]).reshape(pruned.T.shape).T)
+    show_img(
+        np.repeat(np.max(pruned.T, axis=1), pruned.T.shape[1]).reshape(pruned.T.shape).T
+    )
     return
