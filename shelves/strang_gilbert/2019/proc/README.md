@@ -69,6 +69,19 @@ side of the spectrum, which can be characterised by:
 
 > _Above:_ output of `process_scans.py`⠶`example_fft_plot()`
 
+To avoid potential cases of the line landing at the boundary of a window,
+each window is effectively sampled twice, by sliding the window down by half its length
+each time,
+
+```
+for win in np.arange(0, len(img), win_size // 2):
+    im = img[win : win + win_size, x_win_start:x_win_end]
+```
+
+after which any double hits are taken as indicating it lies in the middle
+of the two window regions, and is subsequently cropped to this by the function
+`trim_window` (called in `scan_sparsity`).
+
 The process is made a lot faster by excluding the majority of the image from
 the search for a page boundary: only the bottom 20% is examined (since this
 is where it tends to be in all images), by setting `crop_from_top` to `0.8`
