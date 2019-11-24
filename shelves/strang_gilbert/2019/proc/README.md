@@ -73,7 +73,7 @@ To avoid potential cases of the line landing at the boundary of a window,
 each window is effectively sampled twice, by sliding the window down by half its length
 each time,
 
-```
+```python
 for win in np.arange(0, len(img), win_size // 2):
     im = img[win : win + win_size, x_win_start:x_win_end]
 ```
