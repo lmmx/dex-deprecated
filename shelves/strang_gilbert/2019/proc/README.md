@@ -67,12 +67,16 @@ side of the spectrum, which can be characterised by:
 
 ![](img/documentation/example-fft-spectra-plot.png)
 
+_Above:_ output of `process_scans.py`⠶`example_fft_plot()`
+
 The process is made a lot faster by excluding the majority of the image from
 the search for a page boundary: only the bottom 20% is examined (since this
 is where it tends to be in all images), by setting `crop_from_top` to `0.8`
 in the parameter to the function `calculate_sparsities` in `process_scans.py`.
 
 ![](img/documentation/page-boundary-anim.gif)
+
+_Above:_ output images from `process_scans.py`⠶`calculate_sparsities(crop_from_top=0.8, VISUALISE=True)`
 
 Fitting a contour model to the located regions (8-connected, i.e. "high"
 `fully_connected` parameter setting to `skimage.measure.find_contours`) is
