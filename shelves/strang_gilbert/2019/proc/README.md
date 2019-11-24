@@ -65,6 +65,8 @@ side of the spectrum, which can be characterised by:
     function `prune_fft` with the `prune_percentile` parameter set to 95.
 - the unbroken-ness of the positive regions at the edges
 
+![](img/documentation/example-fft-spectra-plot.png)
+
 The process is made a lot faster by excluding the majority of the image from
 the search for a page boundary: only the bottom 20% is examined (since this
 is where it tends to be in all images), by setting `crop_from_top` to `0.8`

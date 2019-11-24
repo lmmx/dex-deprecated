@@ -15,6 +15,7 @@ from image_funcs import (
     show_bbox_overlay,
     contour_line,
     scan_sparsity,
+    plot_fft_spectrum,
 )
 from gradients import get_grads, get_grad, show_grad
 from skimage.color import rgb2grey
@@ -53,6 +54,12 @@ def calculate_sparsities(crop_from_top=0.8, VISUALISE=False):
         s = scan_sparsity(bg, VISUALISE=VISUALISE)
         print()
 
+def example_fft_plot():
+    """
+    Give an example usage of plot_fft_spectrum
+    """
+    plot_fft_spectrum(brightened_graded[3600:3700,300:800])
+    return
 
 # authors: [420-422].jpg
 # topics: [423-431].jpg

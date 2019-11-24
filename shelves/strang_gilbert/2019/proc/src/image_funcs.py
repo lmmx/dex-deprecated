@@ -363,20 +363,18 @@ def plot_fft_spectrum(img, prune_percentile=95):
     and then along with a pruned version of this high contrast spectrum, in which
     only the values above the bottom {prune_percentile} are kept (e.g. at 95%,
     only the top 5%ile of values is displayed).
+    Note that the image passed in should be the brightened/boosted/scaled Canny
+    gradient image output, not an unmodified photo.
     """
     fig = plt.figure()
-    ax1 = fig.add_subplot(4, 1, 1)
+    ax1 = fig.add_subplot(3, 1, 1)
     imf = fft2(img)
     ax1.imshow(np.abs(imf), norm=LogNorm(vmin=5))
-    ax2 = fig.add_subplot(4, 1, 2)
-    # mod_log = brighten(boost_contrast(scale_img(np.log(np.abs(imf)))))
-    mod_log = img
-    ax2.imshow(mod_log)
-    ax3 = fig.add_subplot(4, 1, 3)
+    ax2 = fig.add_subplot(3, 1, 2)
+    ax2.imshow(img)
+    ax3 = fig.add_subplot(3, 1, 3)
     mod_log_maxima = prune_fft(img, prune_percentile=prune_percentile)
     ax3.imshow(mod_log_maxima)
-    ax4 = fig.add_subplot(4, 1, 4)
-    ax4.imshow(img)
     plt.show()
     return
 
