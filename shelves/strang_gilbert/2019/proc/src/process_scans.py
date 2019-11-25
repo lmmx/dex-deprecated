@@ -30,9 +30,11 @@ assert img_dir.exists() and img_dir.is_dir(), dir_msg
 images = [x.name for x in img_dir.iterdir() if x.suffix == ".jpg"]
 assert len(images) > 0
 
+
 def BG_img(img):
     bg = grade(brighten(boost_contrast(scale_img(img))))
     return bg
+
 
 def get_contours(trimmed_img, view=False, level=254, connectedness="high", refine=True):
     """
@@ -45,26 +47,28 @@ def get_contours(trimmed_img, view=False, level=254, connectedness="high", refin
     if refine:
         contours = refine_contours(contours)
     if view:
-        plt.imshow(trimmed_img, cmap=plt.get_cmap('gray'))
+        plt.imshow(trimmed_img, cmap=plt.get_cmap("gray"))
         for n, contour in enumerate(contours):
             plt.plot(contour[:, 1], contour[:, 0], linewidth=2)
         plt.show()
     return contours
 
+
 def plot_contours(trimmed_img, contours):
-    plt.imshow(trimmed_img, cmap=plt.get_cmap('gray'))
+    plt.imshow(trimmed_img, cmap=plt.get_cmap("gray"))
     for n, contour in enumerate(contours):
         plt.plot(contour[:, 1], contour[:, 0], linewidth=2)
     plt.show()
     return
 
-def refine_contours(contours, x_win=(300,800)):
+
+def refine_contours(contours, x_win=(300, 800)):
     """
     Discard unnecessary contours from the contour set, by detecting overlap with the
     widest contour. Note that this could all be done on rounded coords but leave them
     as found since they are adjusted from int values for display purposes.
     """
-    con_w = lambda c: np.max(c[:,1] - np.min(c[:,1]))
+    con_w = lambda c: np.max(c[:, 1] - np.min(c[:, 1]))
     contours_by_size = [c for c in reversed(sorted(contours, key=lambda x: len(x)))]
     contours_by_width = [c for c in reversed(sorted(contours, key=lambda x: con_w(x)))]
     contour_widths = [con_w(c) for c in contours_by_width]
@@ -84,15 +88,17 @@ def refine_contours(contours, x_win=(300,800)):
         return [biggest_c]
     else:
         # Consider combining the top 2 contours into one (may need coord deduplication)
-        both_ways = [ [big_c, biggest_c], [biggest_c, big_c] ]
-        bridgeable = np.any([np.max(a[:,1] >= np.min(b[:,1])) for (a,b) in both_ways])
+        both_ways = [[big_c, biggest_c], [biggest_c, big_c]]
+        bridgeable = np.any(
+            [np.max(a[:, 1] >= np.min(b[:, 1])) for (a, b) in both_ways]
+        )
         # Only makes sense to combine two whose ranges overlap (bridgeable by isthmus)
         if con_w(biggest_c_r) + con_w(big_c_r) >= max_width - 1:
             print("Biggest two span the window")
             if bridgeable:
                 print("The two are bridgeable")
                 if con_w(biggest_c_r) + con_w(big_c_r) == max_width - 1:
-                    print("The two are adjacent, not overlapping (bridge by isthmus)")
+                    print("The two are adjacent, not overlapping (bridge by joining)")
                 else:
                     print("The two are overlapping (bridge by merging)")
                 return [biggest_c, big_c]
@@ -103,32 +109,34 @@ def refine_contours(contours, x_win=(300,800)):
     print(f"Non-overlap between the top 2 contours by size is {contour_diff.size}")
     return contours
 
-def calculate_sparsity(img_n, crop_from_top=0.8, view=False, verbosity=1, x_win=(300,800)):
+
+def calculate_sparsity(
+    img_n, crop_from_top=0.8, view=False, verbosity=1, x_win=(300, 800)
+):
     """
     Calculate sparsities, after chopping off the top by a ratio
     of {crop_from_top} (e.g. 0.6 deducts 60% of image height).
     """
     print(f"Calculating sparsity for image {img_n}")
     im = imread(img_dir / images[img_n])
-    crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
+    crop_offset = round(im.shape[0] * crop_from_top)
+    crop_im = im[crop_offset:, :, :]
     bg = BG_img(crop_im)
-    sel, sparsities = scan_sparsity(bg, x_win=x_win, VISUALISE=view, verbosity=verbosity)
-    trimmed = bg[sel[0][0]:sel[0][1],x_win[0]:x_win[1]]
-    return sel, sparsities, trimmed
+    sel, sparsities = scan_sparsity(bg, x_win=x_win, view=view, verbosity=verbosity)
+    trimmed = bg[sel[0][0] : sel[0][1], x_win[0] : x_win[1]]
+    return sel, sparsities, trimmed, crop_offset
 
-def calculate_sparsities(crop_from_top=0.8, view=False, verbosity=1, x_win=(300,800)):
+
+def calculate_sparsities(crop_from_top=0.8, view=False, verbosity=1, x_win=(300, 800)):
     """
-    Calculate sparsities, after chopping off the top by a ratio
-    of {crop_from_top} (e.g. 0.6 deducts 60% of image height).
+    Wrapper to calculate_sparsity, iterating over the full batch of images.
     """
-    for i in range(0, len(images)):
-        print(f"Calculating sparsity for image {i}")
-        im = imread(img_dir / images[i])
-        crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
-        bg = BG_img(crop_im)
-        sel, sparsities = scan_sparsity(bg, x_win=x_win, VISUALISE=view, verbosity=verbosity)
-        trimmed = bg[sel[0][0]:sel[0][1],x_win[0]:x_win[1]]
+    for img_n in range(0, len(images)):
+        calc_results = calculate_sparsity(img_n, crop_from_top, view, verbosity, x_win)
+        sel, sparsities, trimmed, crop_offset = calc_results
+        del calc_results
         print()
+
 
 def example_fft_plot():
     """
@@ -136,7 +144,7 @@ def example_fft_plot():
     """
     img = imread(img_dir / images[0])
     bg = BG_img(img)
-    plot_fft_spectrum(bg[3600:3700,300:800])
+    plot_fft_spectrum(bg[3600:3700, 300:800])
     return
 
 
@@ -147,16 +155,35 @@ def example_scan_fft(crop_from_top=0.8, view=False, verbosity=1):
     im = imread(img_dir / images[0])
     crop_im = im[round(im.shape[0] * crop_from_top) :, :, :]
     bg = BG_img(crop_im)
-    x_win = (300,800) # Default window for scan_sparsity if not provided
-    sel, sparsities = scan_sparsity(bg, VISUALISE=view, verbosity=verbosity)
-    sel_im = bg[sel[0][0]:sel[0][1], x_win[0]:x_win[1]]
+    x_win = (300, 800)  # Default window for scan_sparsity if not provided
+    sel, sparsities = scan_sparsity(bg, view=view, verbosity=verbosity)
+    sel_im = bg[sel[0][0] : sel[0][1], x_win[0] : x_win[1]]
     plot_fft_spectrum(sel_im)
     return
 
+
+#for img_n in range(0, 1):
 for img_n in range(0, len(images)):
-    sel, sparsities, trimmed = calculate_sparsity(img_n, view=True)
+    x_win = (300, 800)
+    sel, sparsities, trimmed, y_offset = calculate_sparsity(img_n, view=True, x_win=x_win)
     if None not in sel[0]:
         contours = get_contours(trimmed, view=True)
+        if len(contours) == 1:
+            chosen_start, chosen_end = sel[0]
+            print(f"Contour found successfully in "
+            +f"{y_offset+chosen_start}:{y_offset+chosen_end},{x_win[0]}:{x_win[1]}")
+            c = contours[0]
+            c_min_x, c_max_x = np.min(c[:,1]), np.max(c[:,1])
+            # N.B. only y values of countour points are jittered, so float equality
+            # comparisons of contour coordinates' x values work without rounding
+            assert c_max_x - c_min_x == abs(np.subtract(*x_win)) - 1.
+            c_min_y, c_max_y = np.round([np.min(c[:,0]), np.max(c[:,0])]).astype(int)
+            win_y = y_offset + chosen_start
+            print(f"More specifically, at {win_y + c_min_y}:{win_y + c_max_y + 1},"
+                  +f"{x_win[0]}:{x_win[1]}")
+            im_snippet = imread(img_dir / images[img_n])[win_y + c_min_y: win_y + c_max_y + 1,x_win[0]:x_win[1]]
+            bg_snippet = BG_img(im_snippet)
+            show_img(bg_snippet)
 # For images[0] (0th index i.e. 1st image in the list),
 # the long contour is the 6th index (i.e. 7th in the list), 528 points long
 # The 2nd longest is 522 points long (very close, indistinguishable on len alone)
