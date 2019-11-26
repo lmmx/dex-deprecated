@@ -62,6 +62,129 @@ def plot_contours(trimmed_img, contours):
     return
 
 
+def unique_unsorted(vals, axis=0):
+    """
+    Make a list of values unique by removing consecutive duplicates,
+    under the condition that there will only be one run of consecutive
+    duplicates in the list for each duplicated value.
+    The axis provided is passed as np.unique(ar=vals, axis=axis).
+    """
+    # unique [sorted] list; indexes of [u for ul in vals]; ul counts
+    # The 3 True parameters are to return: index, inverse, counts
+    ul, ulj, uli, ulc = np.unique(vals, True, True, True, axis=axis)
+    # Indexes of vals are denoted by i, indexes of ul are denoted by j
+    # ulc_j_multi is a list of indexes on ul where count > 1
+    ul_j_multi = np.where(ulc > 1)[0]
+    ul_i_multi = [np.where([np.all(v == ul[j]) for v in vals])[0] for j in ul_j_multi]
+    # The following line asserts that the duplicate values are consecutive together
+    assert np.all([np.all(np.diff(r) == 1) for r in ul_i_multi])
+    # To return a list that is unique, simply invert the reordering sort with argsort
+    ul_presort = ul[ulj.argsort()]
+    return ul_presort
+
+
+def unpack_contours(contours):
+    """
+    Returns one rightward-oriented path per input contour in the list contours,
+    so a list of 2 contours (closed polygons with repeated float values) is
+    converted into a list of 2 paths from the leftmost to the rightmost (i.e.
+    ascending x axis order), with all floats rounded and converted to integer
+    arrays (outputs a list of numpy arrays, same as the input format).
+    """
+    paths = []
+    # Iterate over the contours, sorted from leftmost to rightmost
+    for c in sorted(contours, key=lambda x: min(x[1])):
+        # All contour coords rounded to integer values now
+        c_r = np.round(c).astype(int)
+        c_min_x, c_max_x = np.min(c_r[:, 1]), np.max(c_r[:, 1])
+        closed = np.array_equal(c_r[0], c_r[-1])
+        assert closed, "I didn't code for unclosed contours (yet?)"
+        leftward = c_r[0, 1] == c_max_x
+        rightward = c_r[0, 1] == c_min_x
+        assert leftward or rightward, "Contour is neither leftward or rightward?"
+        if leftward:
+            # This means the turning point is the leftmost x, c_min_x
+            tp_i = np.where(c_r[:, 1] == c_min_x)[0]
+        else:
+            # This means the turning point is the rightmost x, c_max_x
+            tp_i = np.where(c_r[:, 1] == c_max_x)[0]
+        if tp_i.size > 1:
+            # Check that the index values are consecutive
+            assert np.all(np.diff(tp_i) == 1)
+        outward = c_r[: tp_i[0] + 1]  # Ends on turning point
+        inward = c_r[tp_i[-1] :]  # Starts at turning point
+        in_u = unique_unsorted(inward, axis=0)
+        out_u = unique_unsorted(outward, axis=0)
+        symmetric = np.array_equal(in_u, out_u[::-1])
+        if symmetric:
+            if leftward:
+                # Choose the rightward direction always, so here choose inward
+                paths.append(in_u)
+            else:
+                # Choose the rightward direction always, so here choose outward
+                paths.append(out_u)
+        else:
+            # For asymmetric outbound and inbound paths, quantify the deviation
+            deviations = np.diff(list(zip(out_u, in_u[::-1])), axis=1)
+            dx, dy = deviations[:, :, 1][:, 0], deviations[:, :, 0][:, 0]
+            dev_x, dev_y = np.where(dx != 0)[0], np.where(dy != 0)[0]
+            n_deviations = np.count_nonzero(deviations)
+            assert n_deviations > 0, "The asymmetry isn't from deviated paths?"
+            assert dev_x.size == 0, "The asymmetry is due to x axis deviations?"
+            assert dev_y.size > 0, "Only asymmetry due to y axis deviation plz"
+            # Just handle deviations on the y axis
+            dev_y_coord = deviations[dev_y, 0, 0]
+            # Probably caused by a boundary >1px thick, we want its bottom
+            # Note that the contour finding algorithm (marching squares
+            # implemented in skimage.measure.find_contours) goes counter-
+            # clockwise because default parameter positive_orientation="low".
+            # Counter-clockwise direction looks like clockwise for viewing
+            # images as the y axis is flipped (try drawing a clock to see!)
+            #
+            # I don't think it's necessary to check each, just choose based
+            # on which will be lower down the image (i.e. higher y value)
+            if rightward:
+                # inward y value is higher (bottom of boundary), choose that
+                assert (
+                    min(deviations[dev_y][:, :, 0]) > 0
+                ), "A rightward path should wind counter-clockwise, deviation of +1"
+                # Reverse a rightward inward path to make its direction rightward
+                paths.append(in_u[::-1])
+            else:
+                # outward y value is higher (bottom of boundary), choose that
+                assert (
+                    min(deviations[dev_y][:, :, 0]) < 0
+                ), "A leftward path should wind counter-clockwise, deviation of -1"
+                # Reverse a leftward outward path to make its direction rightward
+                paths.append(out_u[::-1])
+    return paths
+
+
+def join_paths(paths):
+    """
+    Takes a list of paths from `unpack_contours`, where each path is an integer
+    numpy array of coordinates in order of (y,x), the order they are returned
+    from skimage.measure.find_contours. These paths are expected to be listed
+    in ascending x axis order, and checked for adjacency on the x axis.
+    """
+    adjacents = []
+    joined = np.array([], dtype=np.int)
+    for n, path in enumerate(paths):
+        if n + 1 < len(paths):
+            # Check if this path is adjacent to the next
+            p1, p2 = paths[n : n + 2]
+            y_diff, x_diff = np.diff([p1[-1], p2[0]], axis=0)[0]
+            adjacent = x_diff == 1
+            adjacents.append(adjacent)
+    if np.all(adjacents):
+        # Just join
+        pass
+    else:
+        # Add an intermediate pixel? TODO: decide control logic
+        pass
+    return joined
+
+
 def refine_contours(contours, x_win=(300, 800)):
     """
     Discard unnecessary contours from the contour set, by detecting overlap with the
@@ -71,7 +194,7 @@ def refine_contours(contours, x_win=(300, 800)):
     con_w = lambda c: np.max(c[:, 1] - np.min(c[:, 1]))
     contours_by_size = [c for c in reversed(sorted(contours, key=lambda x: len(x)))]
     contours_by_width = [c for c in reversed(sorted(contours, key=lambda x: con_w(x)))]
-    contour_widths = [con_w(c) for c in contours_by_width]
+    contour_widths = [con_w(np.round(c)) for c in contours_by_width]
     print(f"Contours by width: {contour_widths}")
     print(f"Contours by size: {[len(c) for c in contours_by_size]}")
     # The width is the difference in start and end point x values: coords are (y,x)
@@ -99,6 +222,9 @@ def refine_contours(contours, x_win=(300, 800)):
                 print("The two are bridgeable")
                 if con_w(biggest_c_r) + con_w(big_c_r) == max_width - 1:
                     print("The two are adjacent, not overlapping (bridge by joining)")
+                    contour_segments = unpack_contours([biggest_c, big_c])
+                    unified_path = join_paths(contour_segments)
+                    return [unified_path]
                 else:
                     print("The two are overlapping (bridge by merging)")
                 return [biggest_c, big_c]
@@ -162,28 +288,77 @@ def example_scan_fft(crop_from_top=0.8, view=False, verbosity=1):
     return
 
 
-#for img_n in range(0, 1):
-for img_n in range(0, len(images)):
+VISUALISE = True
+# for img_n in range(0, len(images)):
+for img_n in [10]:
     x_win = (300, 800)
-    sel, sparsities, trimmed, y_offset = calculate_sparsity(img_n, view=True, x_win=x_win)
+    sel, sparsities, trimmed, y_offset = calculate_sparsity(
+        img_n, view=VISUALISE, x_win=x_win
+    )
     if None not in sel[0]:
-        contours = get_contours(trimmed, view=True)
+        contours = get_contours(trimmed, view=VISUALISE)
         if len(contours) == 1:
             chosen_start, chosen_end = sel[0]
-            print(f"Contour found successfully in "
-            +f"{y_offset+chosen_start}:{y_offset+chosen_end},{x_win[0]}:{x_win[1]}")
+            print(
+                f"✔ Contour found successfully in "
+                + f"{y_offset+chosen_start}:{y_offset+chosen_end},{x_win[0]}:{x_win[1]}"
+            )
             c = contours[0]
-            c_min_x, c_max_x = np.min(c[:,1]), np.max(c[:,1])
+            c_min_x, c_max_x = np.min(c[:, 1]), np.max(c[:, 1])
             # N.B. only y values of countour points are jittered, so float equality
             # comparisons of contour coordinates' x values work without rounding
-            assert c_max_x - c_min_x == abs(np.subtract(*x_win)) - 1.
-            c_min_y, c_max_y = np.round([np.min(c[:,0]), np.max(c[:,0])]).astype(int)
+            assert c_max_x - c_min_x == abs(np.subtract(*x_win)) - 1.0
+            c_min_y, c_max_y = np.round([np.min(c[:, 0]), np.max(c[:, 0])]).astype(int)
             win_y = y_offset + chosen_start
-            print(f"More specifically, at {win_y + c_min_y}:{win_y + c_max_y + 1},"
-                  +f"{x_win[0]}:{x_win[1]}")
-            im_snippet = imread(img_dir / images[img_n])[win_y + c_min_y: win_y + c_max_y + 1,x_win[0]:x_win[1]]
-            bg_snippet = BG_img(im_snippet)
-            show_img(bg_snippet)
+            contour_y_win = (win_y + c_min_y, win_y + c_max_y + 1)
+            # NB: contour_y_win is a range, i.e. you stop 1 before its max. y
+            print(
+                f"More specifically, at {contour_y_win[0]}:{contour_y_win[1]},"
+                + f"{x_win[0]}:{x_win[1]}"
+            )
+            bg_snippet = BG_img(
+                imread(img_dir / images[img_n])[
+                    contour_y_win[0] : contour_y_win[1], x_win[0] : x_win[1]
+                ]
+            )
+            if VISUALISE:
+                show_img(bg_snippet)
+        elif len(contours) == 2 and img_n == 10:
+            chosen_start, chosen_end = sel[0]
+            print(
+                f"2 contours found successfully in "
+                + f"{y_offset+chosen_start}:{y_offset+chosen_end},{x_win[0]}:{x_win[1]}"
+            )
+            c1 = contours[0]
+            c1_min_x, c1_max_x = np.min(c1[:, 1]), np.max(c1[:, 1])
+            c2 = contours[1]
+            c2_min_x, c2_max_x = np.min(c2[:, 1]), np.max(c2[:, 1])
+            # N.B. only y values of countour points are jittered, so float equality
+            # comparisons of contour coordinates' x values work without rounding
+            # assert c_max_x - c_min_x == abs(np.subtract(*x_win)) - 1.0
+            c1_min_y, c1_max_y = np.round([np.min(c1[:, 0]), np.max(c1[:, 0])]).astype(
+                int
+            )
+            c2_min_y, c2_max_y = np.round([np.min(c2[:, 0]), np.max(c2[:, 0])]).astype(
+                int
+            )
+            c12_min_y = min(c1_min_y, c2_min_y)
+            c12_max_y = max(c1_max_y, c2_max_y)
+            win_y = y_offset + chosen_start
+            contour_y_win = (win_y + c12_min_y, win_y + c12_max_y + 1)
+            # NB: contour_y_win is a range, i.e. you stop 1 before its max. y
+            print(
+                f"More specifically, at {contour_y_win[0]}:{contour_y_win[1]},"
+                + f"{x_win[0]}:{x_win[1]}"
+            )
+            bg_snippet = BG_img(
+                imread(img_dir / images[img_n])[
+                    contour_y_win[0] : contour_y_win[1], x_win[0] : x_win[1]
+                ]
+            )
+            if VISUALISE:
+                show_img(bg_snippet)
+    print()
 # For images[0] (0th index i.e. 1st image in the list),
 # the long contour is the 6th index (i.e. 7th in the list), 528 points long
 # The 2nd longest is 522 points long (very close, indistinguishable on len alone)

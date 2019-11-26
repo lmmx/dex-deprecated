@@ -8,6 +8,11 @@
 - [ ] Python script `src/process_scans.py` crops, sharpens, and increases
   the contrast of the 'scan' images, then assembles them into a single PDF
   (see `doc/index_auth.pdf`, `doc/index_topics.pdf`, `doc/index_symbols.pdf`)
+  - [x] Identify page boundary for cropping images if shown (using FFT of Canny edge map,
+        fanning left and right from x region of 300-800, assuming it will be in bottom 20%
+        of the image - adjustable with `crop_from_top` parameter)
+  - [ ] Sharpen, increase contrast, adjust colour balance of photos to enhance OCR
+  - [ ] Assemble images into single PDF
 - [ ] Tesseract was run on the [author and topic] index PDFs to add an OCR annotation
   text layer
 
