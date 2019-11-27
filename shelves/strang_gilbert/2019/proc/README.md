@@ -118,5 +118,13 @@ merge multiple to span the width of the region if necessary.
 The remaining challenges to resolving the pixels corresponding to a line (the page boundary) are:
 - choosing the longest contour across the region (e.g. the long orange contour) and selecting it as the boundary line,
 - merging multiple disconnected but touching contours into one (e.g. the multicolour along the bottom) to constitute the boundary line,
-- finding the longest continuous contour with 'noise' around it (e.g. the long grey contour) and merging it with adjacent ones to
-  span the entirety of the region as a single boundary line.
+
+![](img/documentation/contour-refiner-algorithm-demo.png)
+
+These are overcome with some attention to the contour algorithm output (marching squares), involving the functions
+`unique_unsorted` (to deduplicate the contours after they have been rounded to integer values, valid since image pixels
+have discrete coordinate values), and `refine_contours` - which calls `unpack_contours` to turn the closed polygons
+[i.e. with identical start and end points] into rightward-directed paths, preferring the bottom-most if outward and
+inward halves are not symmetrical, so as to ensure the bottom of the page is definitely covered by the boundary,
+and then `join_paths` (which takes the unique-valued paths in rightward direction obtained by `unpack_contours`
+and determines the appropriate end pixel to move up or down at each junction between contour segments to achieve 8-connectedness).

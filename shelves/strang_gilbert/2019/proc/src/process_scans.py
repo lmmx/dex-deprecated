@@ -168,20 +168,59 @@ def join_paths(paths):
     in ascending x axis order, and checked for adjacency on the x axis.
     """
     adjacents = []
-    joined = np.array([], dtype=np.int)
-    for n, path in enumerate(paths):
-        if n + 1 < len(paths):
-            # Check if this path is adjacent to the next
-            p1, p2 = paths[n : n + 2]
-            y_diff, x_diff = np.diff([p1[-1], p2[0]], axis=0)[0]
-            adjacent = x_diff == 1
-            adjacents.append(adjacent)
+    for N in range(len(paths) - 1):
+        # Check if this path is adjacent to the next (the junction)
+        junc = [p[n - 1] for n, p in enumerate(paths[N : N + 2])]
+        x_diff = np.diff(junc, axis=0)[0, 1]
+        adjacents.append(x_diff == 1)  # True if extremal x values differ by 1
     if np.all(adjacents):
         # Just join
-        pass
+        for N in range(len(paths) - 1):
+            junc = [p[n - 1] for n, p in enumerate(paths[N : N + 2])]
+            y_diff = np.diff(junc, axis=0)[0, 0]
+            # Also take the penultimate end p1[-2] and second start p2[1] values:
+            junc2 = [p[3*n - 2] for n, p in enumerate(paths[N : N + 2])]
+            # y_diff from p1[-1] to p1[-2] & p2[0] to p2[1] (i.e. away from junction)
+            p1_j2_dy, p2_j2_dy = np.diff([junc, junc2], axis=0)[0][:,0]
+            # If p1[-1] is > 1 pixels higher up (smaller y), lower it (increase y) by 1
+            # if it'll stay 8-connected to the previous [penultimate] point, stored in
+            # junc2, y_diff of p1_j2_dy (vice versa for lowering p2[0] if p2[1]... etc)
+            if abs(y_diff) > 1:
+                # There is a disconnected step (i.e. 2 pixel y gap, not 8-connected)
+                assert abs(y_diff) == 2, f"The gap to bridge is too big: {y_diff} px"
+                # could handle a gap of up to 4, but requires 2nd check (j3_dy)
+                if y_diff > 0:
+                    # There is a positive y + 2 step (i.e. rightwards, down page)
+                    # y_diff = +2
+                    # If y_diff backward on p1 counteracts y_diff across the junction
+                    if p1_j2_dy >= 0:
+                        # p1[-2] will stay connected if you lower p1[-1]
+                        paths[N][-1, 0] += 1 # lower p1[-1] (increment y value)
+                        pass
+                    elif p2_j2_dy <= 0:
+                        # p2[1] will stay connected if you raise p2[0]
+                        paths[N + 1][0, 0] -= 1 # raise p2[0] (decrement y value)
+                        pass
+                    else:
+                        raise ValueError("Gap unbridgeable due to divergent junction")
+                else:
+                    # There is a negative y - 2 step (i.e. rightwards, up page)
+                    # y_diff = -2
+                    # If y_diff across the junction minus y_diff forward on p1
+                    if p1_j2_dy <= 0:
+                        # p1[-2] will stay connected if you raise p1[-1]
+                        paths[N][-1, 0] -= 1 # raise p1[-1] (decrement y value)
+                        pass
+                    elif p2_j2_dy >= 0:
+                        # p2[1] will stay connected if you lower p2[0]
+                        paths[N + 1][0, 0] += 1 # lower p2[0] (inrement y value)
+                        pass
+                    else:
+                        raise ValueError("Gap unbridgeable due to divergent junction")
+        joined = np.vstack(paths)
     else:
         # Add an intermediate pixel? TODO: decide control logic
-        pass
+        raise ValueError("Sorry I've not yet coded for the non-adjacent case")
     return joined
 
 
