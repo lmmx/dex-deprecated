@@ -138,15 +138,35 @@ The remaining challenges to resolving the pixels corresponding to a line (the pa
 - merging multiple disconnected but touching contours into one (e.g. the multicolour along the bottom) to constitute the boundary line,
 
 ![](img/documentation/contour-refiner-algorithm-demo.png)
+
+> _Above:_ annotation of the modifications made to a contour: on the left hand side, circled, `unpack_contours`
+> chooses the lower edge (asymmetric inbound/outbound paths in the closed polygon, shown as a line); on the right
+> hand side, circled, a gap in the contour is solved by joining the end of the path of the first into the start of
+> the path of the second (we can imagine the `(y=9, x=32)` pixel, corresponding to noise in the image gradient,
+> being 'moved down 1 pixel' so as to make the 2 paths 8-connected and permit their concatenation into 1 path).
+
 ![](img/documentation/contour-merge-algorithm-demo.png)
+
+> _Above:_ a neater annotation of the modifications made to a contour: `merge_paths` fixes the breaks between two
+> _overlapping_ contour paths this time (rather than paths adjacent on the x axis, which `join_contours` handles),
+> by considering whether the preceding/succeeding 'plateaus' (the white runs of pixels far left and far right
+> respectively) go in the same direction or the opposite y direction to the y direction across the junction from
+> left to right (here, from the green block to the orange block, i.e. from y=42 to y=44). In this particular case,
+> `y_diff` = +2, and the preceding block (far left) _is_ of the same direction change in comparison to the end
+> terminus (i.e. y = 42 ⇒ y = 43 is also a positive change, `j1_dy_1` = +1) which means it _is_ permitted to
+> move the contour path from the green block downward to the same y position as the orange block (trimming off its
+> overlapping region before concatenating it with the path after the junction to form a single path). The alteration
+> made to the path is circled in red.
 
 These are overcome with some attention to the contour algorithm output (marching squares), involving the functions
 `unique_unsorted` (to deduplicate the contours after they have been rounded to integer values, valid since image pixels
 have discrete coordinate values), and `refine_contours` - which calls `unpack_contours` to turn the closed polygons
 [i.e. with identical start and end points] into rightward-directed paths, preferring the bottom-most if outward and
 inward halves are not symmetrical, so as to ensure the bottom of the page is definitely covered by the boundary,
-and then `join_paths` (which takes the unique-valued paths in rightward direction obtained by `unpack_contours`
+and then either:
+- `join_paths` (which takes the unique-valued paths in rightward direction obtained by `unpack_contours`
 and determines the appropriate end pixel to move up or down at each junction between contour segments to achieve
-8-connectedness) or `merge_paths` (which takes the same paths from `unpack_contours` and moves the 'end plateau'
+8-connectedness)
+- or `merge_paths` (which takes the same paths from `unpack_contours` and moves the 'end plateau'
 [up to and including the path termini] of one path up or down, trimming it back to remove overlap) if the paths
 overlap on the x axis.
