@@ -8,9 +8,27 @@
 - [ ] Python script `src/process_scans.py` crops, sharpens, and increases
   the contrast of the 'scan' images, then assembles them into a single PDF
   (see `doc/index_auth.pdf`, `doc/index_topics.pdf`, `doc/index_symbols.pdf`)
-  - [x] Identify page boundary for cropping images if shown (using FFT of Canny edge map,
-        fanning left and right from x region of 300-800, assuming it will be in bottom 20%
-        of the image - adjustable with `crop_from_top` parameter)
+  - [x] Identify page boundary for cropping images if shown (using FFT of Canny edge map)
+  - [x] Produce explicit contours for this boundary, assuming that the marching squares
+        algorithm will be able to determine the single best choice for this, while
+        reducing wasted computation by only looking for contours within the area
+        identified by FFT signal processing). From the candidates obtained, the widest
+        that span the region in question are taken, with some requirements:
+    - The 1 or 2 contours must span the entirety of the region (adjustable by changing
+      the parameter `c_len` in the function `estimate_contour_sparsity`\* and modifying
+      the control logic to `scan_sparsity` which is currently
+      programmed to reject [`scan_sparsity` will print "rejected (too sparse: {sparsity})"
+      if `v_verbose` is switched on by setting the `verbosity` parameter to 2, which is
+      in turn passed through parameters of `calculate_sparsity`\**]
+      - \* [which in practice turned out to be of little use in distinguishing candidate
+        contour FFT spectra]
+      - \** For an example of the usage of `calculate_sparsity` see `example_scan_fft` in
+        `src/process_scans.py`.
+    - The region can be spanned by two (note that the join and merge algorithms are
+      actually written to handle junctions [i.e. gaps] in more than 2 contour paths,
+      i.e. it would be trivial to extend this if max. 2 turns out to be insufficient)
+  - [ ] Fan left and right from 'seed' x region of 300-800 (default), assuming it will be
+        in bottom 20% of the image (may need to adjust using `crop_from_top` parameter)
   - [ ] Sharpen, increase contrast, adjust colour balance of photos to enhance OCR
   - [ ] Assemble images into single PDF
 - [ ] Tesseract was run on the [author and topic] index PDFs to add an OCR annotation
@@ -120,6 +138,7 @@ The remaining challenges to resolving the pixels corresponding to a line (the pa
 - merging multiple disconnected but touching contours into one (e.g. the multicolour along the bottom) to constitute the boundary line,
 
 ![](img/documentation/contour-refiner-algorithm-demo.png)
+![](img/documentation/contour-merge-algorithm-demo.png)
 
 These are overcome with some attention to the contour algorithm output (marching squares), involving the functions
 `unique_unsorted` (to deduplicate the contours after they have been rounded to integer values, valid since image pixels
@@ -127,4 +146,7 @@ have discrete coordinate values), and `refine_contours` - which calls `unpack_co
 [i.e. with identical start and end points] into rightward-directed paths, preferring the bottom-most if outward and
 inward halves are not symmetrical, so as to ensure the bottom of the page is definitely covered by the boundary,
 and then `join_paths` (which takes the unique-valued paths in rightward direction obtained by `unpack_contours`
-and determines the appropriate end pixel to move up or down at each junction between contour segments to achieve 8-connectedness).
+and determines the appropriate end pixel to move up or down at each junction between contour segments to achieve
+8-connectedness) or `merge_paths` (which takes the same paths from `unpack_contours` and moves the 'end plateau'
+[up to and including the path termini] of one path up or down, trimming it back to remove overlap) if the paths
+overlap on the x axis.

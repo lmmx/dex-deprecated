@@ -83,6 +83,30 @@ def unique_unsorted(vals, axis=0):
     return ul_presort
 
 
+def close_contour(contour):
+    assert contour.dtype == np.int, "contour is not an integer coordinate array"
+    start, end = contour[0], contour[-1]
+    if np.array_equal(start, end):
+        return contour  # contour is already closed
+    c_min_x, c_max_x = np.min(contour[:, 1]), np.max(contour[:, 1])
+    extreme_n = np.where(np.in1d([start[1], end[1]], [c_min_x, c_max_x]))[0][0]
+    if extreme_n == 0:
+        # The start point is the extreme (extreme_n = 0), so extend the end
+        shared_i = np.where([np.array_equal(end, c) for c in contour])[0][0]
+        extension = contour[:shared_i][::-1]
+        contour = np.vstack([contour, extension])
+    else:
+        assert extreme_n == 1
+        # The end point is the extreme (extreme_n = 1), so extend the start
+        shared_i = np.where([np.array_equal(start, c) for c in contour[::-1]])[0][0]
+        extension = contour[::-1][:shared_i]
+        contour = np.vstack([extension, contour])
+    closed = np.array_equal(contour[0], contour[-1])
+    print(f"Contour closed by extending {len(extension)}px (shared_i = {shared_i})")
+    assert closed, "This contour couldn't be closed."
+    return contour
+
+
 def unpack_contours(contours):
     """
     Returns one rightward-oriented path per input contour in the list contours,
@@ -94,11 +118,14 @@ def unpack_contours(contours):
     paths = []
     # Iterate over the contours, sorted from leftmost to rightmost
     for c in sorted(contours, key=lambda x: min(x[1])):
+        print("Processing a contour")
         # All contour coords rounded to integer values now
         c_r = np.round(c).astype(int)
-        c_min_x, c_max_x = np.min(c_r[:, 1]), np.max(c_r[:, 1])
         closed = np.array_equal(c_r[0], c_r[-1])
-        assert closed, "I didn't code for unclosed contours (yet?)"
+        if not closed:
+            print("Closing contour...")
+            c_r = close_contour(c_r)  # Extend the shorter end to close it
+        c_min_x, c_max_x = np.min(c_r[:, 1]), np.max(c_r[:, 1])
         leftward = c_r[0, 1] == c_max_x
         rightward = c_r[0, 1] == c_min_x
         assert leftward or rightward, "Contour is neither leftward or rightward?"
@@ -110,7 +137,8 @@ def unpack_contours(contours):
             tp_i = np.where(c_r[:, 1] == c_max_x)[0]
         if tp_i.size > 1:
             # Check that the index values are consecutive
-            assert np.all(np.diff(tp_i) == 1)
+            print(len(c_r))
+            assert np.all(np.diff(tp_i) == 1), f"Not consecutive: {tp_i}"
         outward = c_r[: tp_i[0] + 1]  # Ends on turning point
         inward = c_r[tp_i[-1] :]  # Starts at turning point
         in_u = unique_unsorted(inward, axis=0)
@@ -164,8 +192,13 @@ def join_paths(paths):
     """
     Takes a list of paths from `unpack_contours`, where each path is an integer
     numpy array of coordinates in order of (y,x), the order they are returned
-    from skimage.measure.find_contours. These paths are expected to be listed
-    in ascending x axis order, and checked for adjacency on the x axis.
+    from skimage.measure.find_contours, and joins them at their junction(s),
+    adjusting the y values of terminal points (+1 or -1) as necessary, then
+    returning one single array from concatenating the listed input paths. These
+    input paths are expected to be listed in ascending x axis order, and are
+    checked for adjacency on the x axis (where adjacency means their terminal
+    points' x values differ by 1), otherwise throwing a ValueError which may
+    indicate `merge_paths` should have been used instead.
     """
     adjacents = []
     for N in range(len(paths) - 1):
@@ -179,9 +212,9 @@ def join_paths(paths):
             junc = [p[n - 1] for n, p in enumerate(paths[N : N + 2])]
             y_diff = np.diff(junc, axis=0)[0, 0]
             # Also take the penultimate end p1[-2] and second start p2[1] values:
-            junc2 = [p[3*n - 2] for n, p in enumerate(paths[N : N + 2])]
+            junc2 = [p[3 * n - 2] for n, p in enumerate(paths[N : N + 2])]
             # y_diff from p1[-1] to p1[-2] & p2[0] to p2[1] (i.e. away from junction)
-            p1_j2_dy, p2_j2_dy = np.diff([junc, junc2], axis=0)[0][:,0]
+            p1_j2_dy, p2_j2_dy = np.diff([junc, junc2], axis=0)[0][:, 0]
             # If p1[-1] is > 1 pixels higher up (smaller y), lower it (increase y) by 1
             # if it'll stay 8-connected to the previous [penultimate] point, stored in
             # junc2, y_diff of p1_j2_dy (vice versa for lowering p2[0] if p2[1]... etc)
@@ -195,11 +228,11 @@ def join_paths(paths):
                     # If y_diff backward on p1 counteracts y_diff across the junction
                     if p1_j2_dy >= 0:
                         # p1[-2] will stay connected if you lower p1[-1]
-                        paths[N][-1, 0] += 1 # lower p1[-1] (increment y value)
+                        paths[N][-1, 0] += 1  # lower p1[-1] (increment y value)
                         pass
                     elif p2_j2_dy <= 0:
                         # p2[1] will stay connected if you raise p2[0]
-                        paths[N + 1][0, 0] -= 1 # raise p2[0] (decrement y value)
+                        paths[N + 1][0, 0] -= 1  # raise p2[0] (decrement y value)
                         pass
                     else:
                         raise ValueError("Gap unbridgeable due to divergent junction")
@@ -209,19 +242,97 @@ def join_paths(paths):
                     # If y_diff across the junction minus y_diff forward on p1
                     if p1_j2_dy <= 0:
                         # p1[-2] will stay connected if you raise p1[-1]
-                        paths[N][-1, 0] -= 1 # raise p1[-1] (decrement y value)
+                        paths[N][-1, 0] -= 1  # raise p1[-1] (decrement y value)
                         pass
                     elif p2_j2_dy >= 0:
                         # p2[1] will stay connected if you lower p2[0]
-                        paths[N + 1][0, 0] += 1 # lower p2[0] (inrement y value)
+                        paths[N + 1][0, 0] += 1  # lower p2[0] (inrement y value)
                         pass
                     else:
                         raise ValueError("Gap unbridgeable due to divergent junction")
         joined = np.vstack(paths)
     else:
-        # Add an intermediate pixel? TODO: decide control logic
+        # Add an intermediate pixel? Case of > 1 px x axis distance is not handled
         raise ValueError("Sorry I've not yet coded for the non-adjacent case")
     return joined
+
+
+def merge_paths(paths):
+    """
+    Takes a list of paths from `unpack_contours`, where each path is an integer
+    numpy array of coordinates in order of (y,x), the order they are returned
+    from skimage.measure.find_contours, and joins them at their junction(s),
+    which are expected to overlap by one or more coordinates on the x axis, by
+    identifying the 'run' or 'plateau' for each of the overlapping terminal points
+    (i.e. the set of points extending away from the overlapping region with the
+    same y value as its terminal point) then identifying the first change in y
+    value that takes place at the end of this 'run'/'plateau' of points), which
+    then is used to decide which of the two plateaus are extensible (possibly both,
+    in which case the lower of the two is chosen to be extended, to ensure the
+    bottom-most boundary is used) returning one single array from concatenating
+    the listed input paths. These input paths are expected to be listed in
+    ascending x axis order, and are checked for overlap on the x axis (where
+    overlap means one or more of their terminal points' x values match), otherwise
+    throwing a ValueError, which may indicate `join_paths` should have been used
+    instead.
+    """
+    for N in range(len(paths) - 1):
+        # Check if this path is adjacent to the next (the junction)
+        junc = [p[n - 1] for n, p in enumerate(paths[N : N + 2])]
+        x_diff = np.diff(junc, axis=0)[0, 1]
+        assert x_diff < 0, f"Paths do not seem to overlap: x_diff = {x_diff}"
+        y_diff = np.diff(junc, axis=0)[0, 0]
+        assert y_diff != 0, "Overlap ends share y coord.: just fuse the junction"
+        # Get the y_diff per point transition away from the junction on both sides
+        p1r_y = paths[N][:, 0][::-1]
+        p2_y = paths[N + 1][:, 0]
+        # Get the non-0 y_diff per point transition away from junction 1
+        j1_dy = p1r_y[(j1_dy_i := np.where(np.diff(p1r_y) != 0)[0])]
+        # Get the non-0 y_diff per point transition away from junction 1
+        j2_dy = p2_y[(j2_dy_i := np.where(np.diff(p2_y) != 0)[0])]
+        # Get the first y transition away from the junction for p1 and p2
+        j1_dy_1 = np.diff([j1_dy[0], p1r_y[j1_dy_i[0]+1]])[0]
+        j2_dy_1 = np.diff([j2_dy[0], p2_y[j2_dy_i[0]+1]])[0]
+        if y_diff > 0:
+            # Handle j1 being higher (smaller y) and j2 being lower (larger y)
+            if j1_dy_1 > 0:
+                # It matches the change in y direction to p2, so merge to p2_y
+                end_plateau = paths[N][::-1][: j1_dy_i[0] + 1]
+                # Shift the end plateau (of p1) downward by y_diff pixels
+                end_plateau[:, 0] += y_diff
+                # Finally, trim the end plateau to eliminate overlap with p2
+                paths[N] = paths[N][:x_diff - 1]
+            elif j2_dy_1 < 0:
+                # Resort to shifting p2 up since p1 cannot be shifted down
+                end_plateau = paths[N + 1][: j2_dy_i[0] + 1]
+                # Shift p2 upward by y_diff pixels to merge it with p1
+                end_plateau[:, 0] -= y_diff
+                # Finally, trim the end plateau to eliminate overlap with p1
+                paths[N + 1] = paths[N + 1][1 - x_diff:]
+            else:
+                # If this happens, add more edge case handling, raise error for now
+                raise ValueError("Reached a junction which diverges, can't merge")
+        else:
+            # Handle j1 being lower (larger y) and j2 being higher (smaller y)
+            if j2_dy_1 > 0:
+                # It matches the change in y direction to p2, so merge to p2_y
+                end_plateau = paths[N + 1][: j2_dy_i[0] + 1]
+                # Shift p2 upward by y_diff pixels to merge it with p1
+                end_plateau[:, 0] -= y_diff
+                # Finally, trim the end plateau to eliminate overlap with p1
+                paths[N + 1] = paths[N + 1][1 - x_diff:]
+            elif j1_dy_1 < 0:
+                # Resort to shifting p1 up since p2 cannot be shifted down
+                end_plateau = paths[N][::-1][: j1_dy_i[0] + 1]
+                # Shift the end plateau (of p1) downward by y_diff pixels
+                end_plateau[:, 0] += y_diff
+                # Finally, trim the end plateau to eliminate overlap with p2
+                paths[N] = paths[N][:x_diff - 1]
+            else:
+                # If this happens, add more edge case handling, raise error for now
+                raise ValueError("Reached a junction which diverges, can't merge")
+    merged = np.vstack(paths)
+    return merged
 
 
 def refine_contours(contours, x_win=(300, 800)):
@@ -259,14 +370,15 @@ def refine_contours(contours, x_win=(300, 800)):
             print("Biggest two span the window")
             if bridgeable:
                 print("The two are bridgeable")
+                contour_segments = unpack_contours([biggest_c, big_c])
                 if con_w(biggest_c_r) + con_w(big_c_r) == max_width - 1:
                     print("The two are adjacent, not overlapping (bridge by joining)")
-                    contour_segments = unpack_contours([biggest_c, big_c])
                     unified_path = join_paths(contour_segments)
-                    return [unified_path]
                 else:
                     print("The two are overlapping (bridge by merging)")
-                return [biggest_c, big_c]
+                    # DEBUGGING: return contour_segments
+                    unified_path = merge_paths(contour_segments)
+                return [unified_path]
             else:
                 print("These two can't be bridged though")
         else:
@@ -327,9 +439,10 @@ def example_scan_fft(crop_from_top=0.8, view=False, verbosity=1):
     return
 
 
-VISUALISE = True
-# for img_n in range(0, len(images)):
-for img_n in [10]:
+VISUALISE = False
+VISUALISE_gradwindow = False
+# for img_n in [1]:
+for img_n in range(0, len(images)):
     x_win = (300, 800)
     sel, sparsities, trimmed, y_offset = calculate_sparsity(
         img_n, view=VISUALISE, x_win=x_win
@@ -360,9 +473,9 @@ for img_n in [10]:
                     contour_y_win[0] : contour_y_win[1], x_win[0] : x_win[1]
                 ]
             )
-            if VISUALISE:
+            if VISUALISE_gradwindow:
                 show_img(bg_snippet)
-        elif len(contours) == 2 and img_n == 10:
+        elif len(contours) == 2:
             chosen_start, chosen_end = sel[0]
             print(
                 f"2 contours found successfully in "
