@@ -11,6 +11,7 @@ from skimage.color import rgb2grey
 from gradients import auto_canny, get_grad, to_rgb, show_image, bbox
 from skimage.measure import find_contours
 from scipy.fftpack import fft2
+import warnings
 
 
 def calculate_contrast(img):
@@ -407,7 +408,10 @@ def prune_fft(img, prune_percentile=95, brighten_grade_img=False, boost_fft=Fals
     if boost_fft:
         im_fft = brighten(boost_contrast(scale_img(np.log(np.abs(im_fft)))))
     else:
-        im_fft = np.log(np.abs(im_fft))
+        # This gives a divide by zero warning sometimes, ignore it
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            im_fft = np.log(np.abs(im_fft))
     im_fft[np.where(im_fft < np.percentile(im_fft, prune_percentile))] = 0
     return im_fft
 
